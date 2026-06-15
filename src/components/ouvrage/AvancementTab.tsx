@@ -31,11 +31,16 @@ export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate }: Pr
     setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
   function hasChildren(id: number) { return ouvrTasks.some((t) => t.parentId === id); }
-  function isVisible(t: Task): boolean {
-    if (t.id === ouvrageId) return false;
+  function isExpanded(t: Task): boolean {
+    if (t.id === ouvrageId) return true;
     const par = ouvrTasks.find((x) => x.id === t.parentId);
     if (!par) return true;
-    return expanded.has(par.id) && isVisible(par);
+    return expanded.has(par.id) && isExpanded(par);
+  }
+
+  function isVisible(t: Task): boolean {
+    if (t.id === ouvrageId) return false;
+    return isExpanded(t);
   }
 
   return (

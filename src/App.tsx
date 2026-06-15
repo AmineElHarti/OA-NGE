@@ -12,7 +12,7 @@ import { hasSupabase } from './lib/supabase';
 function AppShell() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { tasks, history, updateProgress, fetchFromSupabase, loading, synced, userName } = useStore();
+  const { tasks, history, updateProgress, updateTask, fetchFromSupabase, loading, synced, userName } = useStore();
 
   useEffect(() => {
     if (hasSupabase) fetchFromSupabase();
@@ -89,7 +89,7 @@ function AppShell() {
           } />
           <Route path="/taches" element={
             <main className="flex-1 max-w-screen-xl w-full mx-auto px-6 py-6">
-              <TaskList tasks={tasks} onUpdate={updateProgress} />
+              <TaskList tasks={tasks} onUpdate={updateProgress} onUpdateTask={updateTask} />
             </main>
           } />
           <Route path="/ouvrage/:id" element={<OuvrageDetail />} />

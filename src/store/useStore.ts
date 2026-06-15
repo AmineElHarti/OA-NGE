@@ -21,6 +21,7 @@ interface Store {
   setUserName: (name: string) => void;
   fetchFromSupabase: () => Promise<void>;
   updateProgress: (id: number, progress: number, notes?: string) => Promise<void>;
+  updateTask: (id: number, updates: Partial<Pick<Task, 'nom' | 'debut' | 'fin' | 'duree'>>) => void;
   resetAll: () => Promise<void>;
 }
 
@@ -85,6 +86,12 @@ export const useStore = create<Store>()(
           await supabase.from('tasks').upsert({ id, progress, notes: notes ?? null, updated_at: new Date().toISOString(), updated_by: userName });
           await supabase.from('progress_history').insert({ task_id: id, progress, notes: notes ?? null, recorded_by: userName });
         }
+      },
+
+      updateTask: (id, updates) => {
+        set((state) => ({
+          tasks: state.tasks.map((t) => t.id === id ? { ...t, ...updates } : t),
+        }));
       },
 
       resetAll: async () => {

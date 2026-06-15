@@ -10,17 +10,18 @@ import { fr } from 'date-fns/locale';
 interface Props {
   tasks: Task[];
   onUpdate: (id: number, progress: number, notes?: string) => void;
+  onUpdateTask: (id: number, updates: Partial<Pick<Task, 'nom' | 'debut' | 'fin' | 'duree'>>) => void;
 }
 
 function fmt(d: string) {
   try { return format(parseISO(d), 'dd/MM/yy', { locale: fr }); } catch { return d; }
 }
 
-export function TaskList({ tasks, onUpdate }: Props) {
+export function TaskList({ tasks, onUpdate, onUpdateTask }: Props) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set([1, 3, 11, 17]));
   const [filter, setFilter] = useState<'all' | 'inprogress' | 'done' | 'todo' | 'alerts'>('all');
   const [ouvrageFilter, setOuvrageFilter] = useState<number | 'all'>('all');
-  const [editing, setEditing] = useState<{ id: number; value: number; notes: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: number; value: number; notes: string; nom: string; debut: string; fin: string; duree: number } | null>(null);
   const [search, setSearch] = useState('');
 
   const alerts = computeAlerts(tasks);
@@ -76,10 +77,11 @@ export function TaskList({ tasks, onUpdate }: Props) {
     return true;
   });
 
-  const startEdit = (t: Task) => setEditing({ id: t.id, value: t.progress, notes: t.notes ?? '' });
+  const startEdit = (t: Task) => setEditing({ id: t.id, value: t.progress, notes: t.notes ?? '', nom: t.nom, debut: t.debut, fin: t.fin, duree: t.duree });
   const saveEdit = () => {
     if (!editing) return;
     onUpdate(editing.id, editing.value, editing.notes);
+    onUpdateTask(editing.id, { nom: editing.nom, debut: editing.debut, fin: editing.fin, duree: editing.duree });
     setEditing(null);
   };
 
@@ -160,14 +162,40 @@ export function TaskList({ tasks, onUpdate }: Props) {
                         ) : <span className="w-4 flex-shrink-0" />}
                         {t.isMilestone && <span className="text-yellow-500 flex-shrink-0">◆</span>}
                         {isAlerted && <AlertTriangle size={12} className="text-red-400 flex-shrink-0" />}
-                        <span className={`truncate ${t.level === 0 ? 'font-bold text-blue-900' : t.level === 1 ? 'font-semibold text-gray-800' : 'text-gray-700'}`}>
-                          {t.nom}
-                        </span>
+                        {isEdit ? (
+                          <input value={editing.nom} onChange={(e) => setEditing({ ...editing, nom: e.target.value })}
+                            className="text-sm border border-gray-200 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-400 font-medium" />
+                        ) : (
+                          <span className={`truncate ${t.level === 0 ? 'font-bold text-blue-900' : t.level === 1 ? 'font-semibold text-gray-800' : 'text-gray-700'}`}>
+                            {t.nom}
+                          </span>
+                        )}
                       </div>
                     </td>
-                    <td className="py-2 px-4 text-gray-400 text-xs whitespace-nowrap">{t.duree}j</td>
-                    <td className="py-2 px-4 text-gray-500 text-xs whitespace-nowrap font-mono">{fmt(t.debut)}</td>
-                    <td className="py-2 px-4 text-gray-500 text-xs whitespace-nowrap font-mono">{fmt(t.fin)}</td>
+                    <td className="py-2 px-4 text-gray-400 text-xs whitespace-nowrap">
+                      {isEdit ? (
+                        <input type="number" value={editing.duree} onChange={(e) => setEditing({ ...editing, duree: Number(e.target.value) })} min={1}
+                          className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none" />
+                      ) : (
+                        <>{t.duree}j</>
+                      )}
+                    </td>
+                    <td className="py-2 px-4 text-gray-500 text-xs whitespace-nowrap font-mono">
+                      {isEdit ? (
+                        <input type="date" value={editing.debut} onChange={(e) => setEditing({ ...editing, debut: e.target.value })}
+                          className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none" />
+                      ) : (
+                        fmt(t.debut)
+                      )}
+                    </td>
+                    <td className="py-2 px-4 text-gray-500 text-xs whitespace-nowrap font-mono">
+                      {isEdit ? (
+                        <input type="date" value={editing.fin} onChange={(e) => setEditing({ ...editing, fin: e.target.value })}
+                          className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none" />
+                      ) : (
+                        fmt(t.fin)
+                      )}
+                    </td>
                     <td className="py-2 px-4 min-w-48">
                       {isEdit ? (
                         <div className="space-y-1.5">

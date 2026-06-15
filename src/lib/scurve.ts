@@ -10,7 +10,7 @@ export interface SCurvePoint {
   actual: number | null;
 }
 
-function isLeaf(task: Task, tasks: Task[]) {
+function isLeafTask(task: Task, tasks: Task[]) {
   return !tasks.some((t) => t.parentId === task.id);
 }
 
@@ -25,12 +25,17 @@ function theoreticalProgress(task: Task, date: Date): number {
 }
 
 export function generateSCurve(tasks: Task[], history: ProgressEntry[]): SCurvePoint[] {
-  const leaves = tasks.filter((t) => isLeaf(t, tasks));
+  const leaves = tasks.filter((t) => isLeafTask(t, tasks));
   const totalWeight = leaves.reduce((s, t) => s + t.duree, 0);
   const today = new Date();
 
+  const allStarts = leaves.map((t) => parseISO(t.debut));
+  const allEnds = leaves.map((t) => parseISO(t.fin));
+  const projectStart = allStarts.reduce((a, b) => (a < b ? a : b), allStarts[0]);
+  const projectEnd = allEnds.reduce((a, b) => (a > b ? a : b), allEnds[0]);
+
   const weeks = eachWeekOfInterval(
-    { start: parseISO('2026-05-04'), end: parseISO('2027-05-10') },
+    { start: projectStart, end: projectEnd },
     { weekStartsOn: 1 }
   );
 
@@ -75,7 +80,7 @@ export function generateSCurve(tasks: Task[], history: ProgressEntry[]): SCurveP
 }
 
 export function computeAlerts(tasks: Task[]) {
-  const leaves = tasks.filter((t) => isLeaf(t, tasks));
+  const leaves = tasks.filter((t) => isLeafTask(t, tasks));
   const today = new Date();
 
   return leaves

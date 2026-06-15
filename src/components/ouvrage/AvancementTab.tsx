@@ -6,7 +6,7 @@ import type { Task } from '../../data/tasks';
 import type { ProgressEntry } from '../../store/useStore';
 import { getDescendants, computeProgress, computeTheoreticalProgress } from '../../hooks/useOuvrageProgress';
 import { SCurveChart } from '../charts/SCurveChart';
-import { Card, ProgressBar, Button, Modal, Input, Select } from '../ui/index';
+import { Card, ProgressBar, Button, Modal, Input, Select, showToast } from '../ui/index';
 
 interface Props {
   ouvrageId: number;
@@ -68,6 +68,7 @@ export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate, onUp
     onUpdateTask(editing.id, { nom: editing.nom, debut: editing.debut, fin: editing.fin, duree: editing.duree });
     onUpdate(editing.id, editing.progress, editing.notes);
     setEditing(null);
+    showToast('Tâche mise à jour');
   }
 
   // Parent options for add form
@@ -102,11 +103,13 @@ export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate, onUp
     setShowAdd(false);
     setAddForm(EMPTY_ADD);
     setExpanded((p) => new Set([...p, addForm.parentId]));
+    showToast('Tâche ajoutée');
   }
 
   function handleDelete(id: number) {
     onDeleteTask(id);
     setConfirmDelete(null);
+    showToast('Tâche supprimée', 'info');
   }
 
   return (
@@ -220,7 +223,7 @@ export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate, onUp
                 const isEdit = editing?.id === t.id;
                 const indent = Math.max(0, t.level - 2) * 14;
                 return (
-                  <tr key={t.id} className={`hover:bg-slate-50/60 transition-colors ${t.level === 2 ? 'bg-slate-50/30' : ''}`}>
+                  <tr key={t.id} className={`group hover:bg-slate-50/60 transition-colors ${t.level === 2 ? 'bg-slate-50/30' : ''}`}>
                     {/* Nom */}
                     <td className="py-2 px-5">
                       <div className="flex items-center gap-1.5" style={{ paddingLeft: indent }}>
@@ -240,7 +243,11 @@ export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate, onUp
                     {/* Durée */}
                     <td className="py-2 px-3 text-xs text-gray-400 whitespace-nowrap">
                       {isEdit ? (
-                        <input type="number" min={1} value={editing.duree} onChange={(e) => setEditing({ ...editing, duree: Number(e.target.value) })}
+                        <input type="number" min={1} value={editing.duree} onChange={(e) => {
+                            const days = Math.max(1, Number(e.target.value));
+                            const newFin = new Date(new Date(editing.debut).getTime() + days * 86400000).toISOString().split('T')[0];
+                            setEditing({ ...editing, duree: days, fin: newFin });
+                          }}
                           className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none" />
                       ) : (
                         <>{t.duree}j</>
@@ -249,7 +256,11 @@ export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate, onUp
                     {/* Début */}
                     <td className="py-2 px-3 text-xs text-gray-400 whitespace-nowrap">
                       {isEdit ? (
-                        <input type="date" value={editing.debut} onChange={(e) => setEditing({ ...editing, debut: e.target.value })}
+                        <input type="date" value={editing.debut} onChange={(e) => {
+                            const newDebut = e.target.value;
+                            const newFin = new Date(new Date(newDebut).getTime() + editing.duree * 86400000).toISOString().split('T')[0];
+                            setEditing({ ...editing, debut: newDebut, fin: newFin });
+                          }}
                           className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none" />
                       ) : (
                         <span className="font-mono">{format(parseISO(t.debut), 'dd/MM/yy', { locale: fr })}</span>

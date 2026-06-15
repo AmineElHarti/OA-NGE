@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { OuvrageDetail } from './pages/OuvrageDetail';
 import { Sidebar } from './components/layout/Sidebar';
 import { TaskList } from './components/TaskList';
+import { ToastContainer } from './components/ui/index';
 import { generatePDFReport } from './lib/pdfReport';
 import { hasSupabase } from './lib/supabase';
 
@@ -81,6 +82,7 @@ function AppShell() {
           </div>
         )}
 
+        <ToastContainer />
         <Routes>
           <Route path="/" element={
             <main className="flex-1 max-w-screen-xl w-full mx-auto px-6 py-6">

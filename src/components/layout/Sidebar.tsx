@@ -34,7 +34,7 @@ export function Sidebar({ tasks, onClose }: Props) {
           </div>
           <div>
             <p className="text-white font-bold text-sm leading-none">NGE</p>
-            <p className="text-slate-500 text-xs mt-0.5">OA LGV · Kenitra–Mrakech</p>
+            <p className="text-slate-500 text-xs mt-0.5">OA LGV · Kenitra–Marrakech</p>
           </div>
         </div>
         {onClose && (

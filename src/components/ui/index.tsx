@@ -1,6 +1,6 @@
 // ── Reusable UI primitives ──────────────────────────────────────────────────
 
-import { type ReactNode, forwardRef } from 'react';
+import { type ReactNode, forwardRef, useState, useEffect, useCallback } from 'react';
 
 // ─── Button ─────────────────────────────────────────────────────────────────
 
@@ -193,4 +193,38 @@ export function SectionHeader({ title, description, actions }: SectionHeaderProp
 
 export function Divider({ className = '' }: { className?: string }) {
   return <hr className={`border-gray-100 ${className}`} />;
+}
+
+// ─── Toast ─────────────────────────────────────────────────────────────────
+
+type ToastVariant = 'success' | 'error' | 'info';
+const TOAST_STYLE: Record<ToastVariant, string> = {
+  success: 'bg-emerald-600 text-white',
+  error: 'bg-red-600 text-white',
+  info: 'bg-gray-800 text-white',
+};
+
+let _showToast: ((msg: string, variant?: ToastVariant) => void) | null = null;
+export function showToast(msg: string, variant: ToastVariant = 'success') {
+  _showToast?.(msg, variant);
+}
+
+export function ToastContainer() {
+  const [toasts, setToasts] = useState<{ id: number; msg: string; variant: ToastVariant }[]>([]);
+  const add = useCallback((msg: string, variant: ToastVariant = 'success') => {
+    const id = Date.now();
+    setToasts((p) => [...p, { id, msg, variant }]);
+    setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 2500);
+  }, []);
+  useEffect(() => { _showToast = add; return () => { _showToast = null; }; }, [add]);
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[100] space-y-2">
+      {toasts.map((t) => (
+        <div key={t.id} className={`${TOAST_STYLE[t.variant]} px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg animate-slide-up`}>
+          {t.msg}
+        </div>
+      ))}
+    </div>
+  );
 }

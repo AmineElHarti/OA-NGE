@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { Task } from '../data/tasks';
 import { OUVRAGES } from '../data/tasks';
-import { Card, ProgressBar, Badge, SectionHeader } from './ui/index';
+import { Card, ProgressBar, Badge, SectionHeader, showToast } from './ui/index';
 import { Check, ChevronRight, ChevronDown, AlertTriangle, Zap, Table, ArrowRight, ArrowLeft } from 'lucide-react';
 import { computeAlerts } from '../lib/scurve';
 import { getDescendants, isLeaf, computeProgress, computeTheoreticalProgress } from '../hooks/useOuvrageProgress';
@@ -61,11 +61,14 @@ function QuickUpdateView({ tasks, onUpdate }: Pick<Props, 'tasks' | 'onUpdate'>)
     if (v) {
       onUpdate(id, v.progress, v.notes);
       setValues((prev) => { const n = { ...prev }; delete n[id]; return n; });
+      showToast('Avancement enregistré');
     }
   }
   function saveAll() {
+    const count = Object.keys(values).length;
     Object.entries(values).forEach(([id, v]) => onUpdate(Number(id), v.progress, v.notes));
     setValues({});
+    showToast(`${count} tâche(s) mise(s) à jour`);
   }
 
   const hasChanges = Object.keys(values).length > 0;

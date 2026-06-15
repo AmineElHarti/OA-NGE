@@ -4,7 +4,7 @@ import { getTaskStatus } from '../../data/tasks';
 import { Plus, Calendar, User, AlertCircle } from 'lucide-react';
 import { format, parseISO, isPast } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Button, Badge, Modal, Input, Select, ProgressBar } from '../ui/index';
+import { Button, Badge, Modal, Input, Select, ProgressBar, showToast } from '../ui/index';
 import { getDescendants, isLeaf } from '../../hooks/useOuvrageProgress';
 import {
   DndContext, DragOverlay, PointerSensor, useDroppable, useSensor, useSensors,
@@ -97,8 +97,7 @@ export function KanbanBoard({ ouvrageId, tasks, color, onUpdateTask, onUpdatePro
   const [activeId, setActiveId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
-  // Edit form state
-  const [editForm, setEditForm] = useState({ priority: 'moyen' as Priority, assignedTo: '', progress: 0, notes: '', blocked: false });
+  const [editForm, setEditForm] = useState({ nom: '', debut: '', fin: '', duree: 1, priority: 'moyen' as Priority, assignedTo: '', progress: 0, notes: '', blocked: false });
 
   const allOuvrTasks = getDescendants(tasks, ouvrageId);
   const leafTasks = useMemo(() =>
@@ -151,6 +150,10 @@ export function KanbanBoard({ ouvrageId, tasks, color, onUpdateTask, onUpdatePro
   function openEdit(t: Task) {
     setEditTask(t);
     setEditForm({
+      nom: t.nom,
+      debut: t.debut,
+      fin: t.fin,
+      duree: t.duree,
       priority: t.priority ?? 'moyen',
       assignedTo: t.assignedTo ?? '',
       progress: t.progress,
@@ -162,12 +165,17 @@ export function KanbanBoard({ ouvrageId, tasks, color, onUpdateTask, onUpdatePro
   function saveEdit() {
     if (!editTask) return;
     onUpdateTask(editTask.id, {
+      nom: editForm.nom,
+      debut: editForm.debut,
+      fin: editForm.fin,
+      duree: editForm.duree,
       priority: editForm.priority,
       assignedTo: editForm.assignedTo || undefined,
       blocked: editForm.blocked,
     });
     onUpdateProgress(editTask.id, editForm.progress, editForm.notes);
     setEditTask(null);
+    showToast('Tâche mise à jour');
   }
 
   function openAdd() {
@@ -197,6 +205,7 @@ export function KanbanBoard({ ouvrageId, tasks, color, onUpdateTask, onUpdatePro
       assignedTo: addForm.assignedTo || undefined,
     });
     setShowAdd(false);
+    showToast('Tâche ajoutée');
   }
 
   return (
@@ -206,9 +215,17 @@ export function KanbanBoard({ ouvrageId, tasks, color, onUpdateTask, onUpdatePro
         <div className="space-y-4">
           <Input label="Nom *" value={addForm.nom} onChange={(e) => setAddForm({ ...addForm, nom: e.target.value })} placeholder="Ex: Ferraillage semelle S1" />
           <div className="grid grid-cols-3 gap-3">
-            <Input label="Début" type="date" value={addForm.debut} onChange={(e) => setAddForm({ ...addForm, debut: e.target.value })} />
+            <Input label="Début" type="date" value={addForm.debut} onChange={(e) => {
+              const d = e.target.value;
+              const f = new Date(new Date(d).getTime() + addForm.duree * 86400000).toISOString().split('T')[0];
+              setAddForm({ ...addForm, debut: d, fin: f });
+            }} />
             <Input label="Fin" type="date" value={addForm.fin} onChange={(e) => setAddForm({ ...addForm, fin: e.target.value })} />
-            <Input label="Durée (j)" type="number" value={String(addForm.duree)} onChange={(e) => setAddForm({ ...addForm, duree: Number(e.target.value) })} />
+            <Input label="Durée (j)" type="number" value={String(addForm.duree)} onChange={(e) => {
+              const days = Math.max(1, Number(e.target.value));
+              const f = new Date(new Date(addForm.debut).getTime() + days * 86400000).toISOString().split('T')[0];
+              setAddForm({ ...addForm, duree: days, fin: f });
+            }} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Select label="Priorité" value={addForm.priority} onChange={(e) => setAddForm({ ...addForm, priority: e.target.value as Priority })}
@@ -226,9 +243,20 @@ export function KanbanBoard({ ouvrageId, tasks, color, onUpdateTask, onUpdatePro
       <Modal open={editTask !== null} onClose={() => setEditTask(null)} title={editTask ? `Modifier — ${editTask.nom}` : ''}>
         {editTask && (
           <div className="space-y-4">
-            <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
-              <p><span className="font-semibold text-gray-700">Dates :</span> {format(parseISO(editTask.debut), 'dd/MM/yyyy', { locale: fr })} → {format(parseISO(editTask.fin), 'dd/MM/yyyy', { locale: fr })}</p>
-              <p><span className="font-semibold text-gray-700">Durée :</span> {editTask.duree} jours</p>
+            <Input label="Nom" value={editForm.nom} onChange={(e) => setEditForm({ ...editForm, nom: e.target.value })} />
+            <div className="grid grid-cols-3 gap-3">
+              <Input label="Début" type="date" value={editForm.debut} onChange={(e) => {
+                const newDebut = e.target.value;
+                const days = editForm.duree;
+                const newFin = new Date(new Date(newDebut).getTime() + days * 86400000).toISOString().split('T')[0];
+                setEditForm({ ...editForm, debut: newDebut, fin: newFin });
+              }} />
+              <Input label="Fin" type="date" value={editForm.fin} onChange={(e) => setEditForm({ ...editForm, fin: e.target.value })} />
+              <Input label="Durée (j)" type="number" value={String(editForm.duree)} onChange={(e) => {
+                const days = Math.max(1, Number(e.target.value));
+                const newFin = new Date(new Date(editForm.debut).getTime() + days * 86400000).toISOString().split('T')[0];
+                setEditForm({ ...editForm, duree: days, fin: newFin });
+              }} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Select label="Priorité" value={editForm.priority} onChange={(e) => setEditForm({ ...editForm, priority: e.target.value as Priority })}
@@ -283,7 +311,7 @@ export function KanbanBoard({ ouvrageId, tasks, color, onUpdateTask, onUpdatePro
               <p className="text-sm text-gray-700">Supprimer <span className="font-semibold">"{t?.nom}"</span> ?</p>
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={() => setConfirmDelete(null)}>Annuler</Button>
-                <Button variant="danger" onClick={() => { onDeleteTask(confirmDelete); setConfirmDelete(null); }}>Supprimer</Button>
+                <Button variant="danger" onClick={() => { onDeleteTask(confirmDelete); setConfirmDelete(null); showToast('Tâche supprimée', 'info'); }}>Supprimer</Button>
               </div>
             </div>
           );

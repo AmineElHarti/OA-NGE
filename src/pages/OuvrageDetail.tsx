@@ -106,7 +106,7 @@ export function OuvrageDetail() {
       {/* Tab content */}
       <main className="max-w-screen-xl mx-auto px-6 py-6">
         {tab === 'avancement' && <AvancementTab ouvrageId={ouvrageId} tasks={tasks} history={history} color={ouvrage.color} onUpdate={updateProgress} onUpdateTask={updateTask} onAddTask={addTask} onDeleteTask={deleteTask} />}
-        {tab === 'kanban' && <KanbanBoard ouvrageId={ouvrageId} />}
+        {tab === 'kanban' && <KanbanBoard ouvrageId={ouvrageId} tasks={tasks} color={ouvrage.color} onUpdateTask={updateTask} onUpdateProgress={updateProgress} onAddTask={addTask} onDeleteTask={deleteTask} />}
         {tab === 'contraintes' && <ContraintesTab ouvrageId={ouvrageId} />}
         {tab === 'notes' && <NotesTab ouvrageId={ouvrageId} userName={userName} />}
         {tab === 'todos' && <TodoTab ouvrageId={ouvrageId} />}

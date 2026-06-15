@@ -1,3 +1,6 @@
+export type Priority = 'faible' | 'moyen' | 'eleve' | 'critique';
+export type KanbanStatus = 'planifie' | 'en_cours' | 'en_attente' | 'termine';
+
 export interface Task {
   id: number;
   nom: string;
@@ -10,6 +13,16 @@ export interface Task {
   progress: number; // 0-100
   notes?: string;
   updatedAt?: string;
+  priority?: Priority;
+  assignedTo?: string;
+  blocked?: boolean; // true = "en attente" regardless of progress
+}
+
+export function getTaskStatus(t: Task): KanbanStatus {
+  if (t.blocked) return 'en_attente';
+  if (t.progress === 100) return 'termine';
+  if (t.progress > 0) return 'en_cours';
+  return 'planifie';
 }
 
 export const INITIAL_TASKS: Omit<Task, 'progress' | 'notes' | 'updatedAt'>[] = [

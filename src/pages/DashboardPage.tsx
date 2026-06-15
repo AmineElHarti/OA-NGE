@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import type { Task } from '../data/tasks';
+import { getTaskStatus } from '../data/tasks';
 import type { ProgressEntry } from '../store/useStore';
-import { useOuvrageProgress, useGlobalProgress } from '../hooks/useOuvrageProgress';
+import { useOuvrageProgress, useGlobalProgress, isLeaf, getDescendants } from '../hooks/useOuvrageProgress';
 import { useOuvrageStore } from '../store/useOuvrageStore';
 import { computeAlerts } from '../lib/scurve';
 import { SCurveChart } from '../components/charts/SCurveChart';
@@ -10,32 +11,42 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
   TrendingUp, TrendingDown, CheckCircle2, Clock, AlertTriangle,
-  Building2, ArrowRight, Kanban, MessageSquare, ClipboardList,
+  Building2, ArrowRight, Kanban, MessageSquare, ClipboardList, PauseCircle,
 } from 'lucide-react';
 
 interface Props { tasks: Task[]; history: ProgressEntry[] }
+
+function findOuvrageId(task: Task, tasks: Task[], ouvrages: ReturnType<typeof useOuvrageProgress>): number | undefined {
+  let cur: Task | undefined = task;
+  while (cur) {
+    if (ouvrages.find((o) => o.id === cur!.id)) return cur.id;
+    cur = tasks.find((t) => t.id === cur!.parentId);
+  }
+  return undefined;
+}
 
 export function DashboardPage({ tasks, history }: Props) {
   const navigate = useNavigate();
   const ouvrages = useOuvrageProgress(tasks);
   const { progress, theoretical, gap } = useGlobalProgress(tasks);
   const alerts = computeAlerts(tasks);
-  const { cards, contraintes, notes, todos } = useOuvrageStore();
+  const { contraintes, notes, todos } = useOuvrageStore();
 
-  const leaves = tasks.filter((t) => !tasks.some((x) => x.parentId === t.id));
-  const done = leaves.filter((t) => t.progress === 100).length;
+  const allLeaves = tasks.filter((t) => isLeaf(t.id, tasks));
+  const done = allLeaves.filter((t) => t.progress === 100).length;
   const completed = ouvrages.filter((o) => o.progress === 100).length;
   const inProgress = ouvrages.filter((o) => o.progress > 0 && o.progress < 100).length;
   const criticalAlerts = alerts.filter((a) => a.gap >= 40).length;
 
-  // Global activity counts
-  const openCards = cards.filter((c) => c.status !== 'termine').length;
+  // Task-based activity (replaces old kanban cards)
+  const activeTasks = allLeaves.filter((t) => getTaskStatus(t) === 'en_cours');
+  const blockedTasks = allLeaves.filter((t) => t.blocked);
+  const critiqueTasks = allLeaves.filter((t) => t.priority === 'critique' && t.progress < 100);
   const openContraintes = contraintes.filter((c) => c.status !== 'levee').length;
   const pendingTodos = todos.filter((t) => !t.done).length;
   const recentNotes = notes.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
 
-  // Critical kanban (critique priority, not done)
-  const criticalCards = cards.filter((c) => c.priority === 'critique' && c.status !== 'termine');
+  const PCOLOR: Record<string, string> = { faible: 'bg-gray-300', moyen: 'bg-blue-400', eleve: 'bg-amber-400', critique: 'bg-red-500' };
 
   return (
     <div className="space-y-7">
@@ -74,50 +85,68 @@ export function DashboardPage({ tasks, history }: Props) {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Ouvrages terminés" value={`${completed}/${ouvrages.length}`} sub={`${inProgress} en cours`} icon={<CheckCircle2 size={20} />} accent="#10b981" />
-        <Stat label="Tâches complètes" value={`${done}/${leaves.length}`} sub={`${Math.round(done / leaves.length * 100)}% des tâches`} icon={<Building2 size={20} />} accent="#6366f1" />
+        <Stat label="Tâches complètes" value={`${done}/${allLeaves.length}`} sub={`${Math.round(done / allLeaves.length * 100)}% des tâches`} icon={<Building2 size={20} />} accent="#6366f1" />
         <Stat label="Alertes retards" value={criticalAlerts} sub={`${alerts.length} retards au total`} icon={<AlertTriangle size={20} />} accent={criticalAlerts > 0 ? '#ef4444' : '#10b981'} />
         <Stat label="Avance / Retard" value={`${gap >= 0 ? '+' : ''}${gap}%`} sub="vs planning théorique" icon={gap >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />} accent={gap >= 0 ? '#10b981' : '#ef4444'} />
       </div>
 
       {/* Activity summary */}
       <div className="grid grid-cols-3 gap-4">
-        {/* Kanban */}
+        {/* Active tasks + blocked */}
         <Card className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Kanban size={15} className="text-blue-600" />
-              <span className="text-sm font-bold text-gray-800">Kanban</span>
+              <span className="text-sm font-bold text-gray-800">Tâches actives</span>
             </div>
-            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{openCards} en cours</span>
+            <div className="flex gap-1.5">
+              <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{activeTasks.length} en cours</span>
+              {blockedTasks.length > 0 && <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">{blockedTasks.length} bloquées</span>}
+            </div>
           </div>
-          {criticalCards.length > 0 ? (
+          {critiqueTasks.length > 0 ? (
             <div className="space-y-1.5">
-              {criticalCards.slice(0, 4).map((c) => {
-                const ouv = ouvrages.find((o) => o.id === c.ouvrageId);
+              <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">Priorité critique</p>
+              {critiqueTasks.slice(0, 4).map((t) => {
+                const oId = findOuvrageId(t, tasks, ouvrages);
+                const ouv = ouvrages.find((o) => o.id === oId);
                 return (
-                  <div key={c.id} onClick={() => navigate(`/ouvrage/${c.ouvrageId}`)} className="flex items-center gap-2 cursor-pointer group">
+                  <div key={t.id} onClick={() => oId && navigate(`/ouvrage/${oId}`)} className="flex items-center gap-2 cursor-pointer group">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
-                    <span className="text-xs text-gray-700 truncate group-hover:text-blue-600 flex-1">{c.titre}</span>
-                    {ouv && <span className="text-xs text-gray-400 shrink-0">{ouv.shortName}</span>}
+                    <span className="text-xs text-gray-700 truncate group-hover:text-blue-600 flex-1">{t.nom}</span>
+                    <span className="text-xs font-bold tabular-nums" style={{ color: ouv?.color }}>{t.progress}%</span>
                   </div>
                 );
               })}
-              {criticalCards.length > 4 && <p className="text-xs text-gray-400">+{criticalCards.length - 4} autres critiques</p>}
             </div>
           ) : (
             <div className="space-y-1.5">
-              {cards.filter((c) => c.status !== 'termine').slice(0, 4).map((c) => {
-                const ouv = ouvrages.find((o) => o.id === c.ouvrageId);
-                const PCOLOR: Record<string, string> = { faible: 'bg-gray-300', moyen: 'bg-blue-400', eleve: 'bg-amber-400', critique: 'bg-red-500' };
+              {activeTasks.slice(0, 5).map((t) => {
+                const oId = findOuvrageId(t, tasks, ouvrages);
+                const ouv = ouvrages.find((o) => o.id === oId);
                 return (
-                  <div key={c.id} onClick={() => navigate(`/ouvrage/${c.ouvrageId}`)} className="flex items-center gap-2 cursor-pointer group">
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${PCOLOR[c.priority]}`} />
-                    <span className="text-xs text-gray-700 truncate group-hover:text-blue-600 flex-1">{c.titre}</span>
-                    {ouv && <span className="text-xs text-gray-400 shrink-0">{ouv.shortName}</span>}
+                  <div key={t.id} onClick={() => oId && navigate(`/ouvrage/${oId}`)} className="flex items-center gap-2 cursor-pointer group">
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${PCOLOR[t.priority ?? 'moyen']}`} />
+                    <span className="text-xs text-gray-700 truncate group-hover:text-blue-600 flex-1">{t.nom}</span>
+                    <span className="text-xs font-bold tabular-nums" style={{ color: ouv?.color }}>{t.progress}%</span>
                   </div>
                 );
               })}
-              {openCards === 0 && <p className="text-xs text-gray-400 text-center py-2">Aucune carte active</p>}
+              {activeTasks.length === 0 && <p className="text-xs text-gray-400 text-center py-2">Aucune tâche en cours</p>}
+            </div>
+          )}
+          {blockedTasks.length > 0 && (
+            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-amber-600 flex items-center gap-1"><PauseCircle size={11} /> En attente</p>
+              {blockedTasks.slice(0, 3).map((t) => {
+                const oId = findOuvrageId(t, tasks, ouvrages);
+                return (
+                  <div key={t.id} onClick={() => oId && navigate(`/ouvrage/${oId}`)} className="flex items-center gap-2 cursor-pointer group">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                    <span className="text-xs text-gray-700 truncate group-hover:text-blue-600">{t.nom}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>
@@ -161,7 +190,6 @@ export function DashboardPage({ tasks, history }: Props) {
             <div className="space-y-1.5">
               {todos.filter((t) => !t.done).slice(0, 4).map((t) => {
                 const ouv = ouvrages.find((o) => o.id === t.ouvrageId);
-                const PCOLOR: Record<string, string> = { faible: 'bg-gray-300', moyen: 'bg-blue-400', eleve: 'bg-amber-400', critique: 'bg-red-500' };
                 return (
                   <div key={t.id} onClick={() => navigate(`/ouvrage/${t.ouvrageId}`)} className="flex items-center gap-2 cursor-pointer group">
                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${PCOLOR[t.priority]}`} />
@@ -170,7 +198,7 @@ export function DashboardPage({ tasks, history }: Props) {
                   </div>
                 );
               })}
-              {pendingTodos === 0 && <p className="text-xs text-gray-400 text-center py-1">Tout est à jour ✓</p>}
+              {pendingTodos === 0 && <p className="text-xs text-gray-400 text-center py-1">Tout est à jour</p>}
             </div>
           </Card>
 
@@ -213,7 +241,10 @@ export function DashboardPage({ tasks, history }: Props) {
               while (cur) { if (cur.id === o.id) return true; cur = tasks.find((t) => t.id === cur!.parentId); }
               return false;
             });
-            const oCards = cards.filter((c) => c.ouvrageId === o.id && c.status !== 'termine').length;
+            const oDesc = getDescendants(tasks, o.id);
+            const oLeaves = oDesc.filter((t) => isLeaf(t.id, oDesc));
+            const oActive = oLeaves.filter((t) => getTaskStatus(t) === 'en_cours').length;
+            const oBlocked = oLeaves.filter((t) => t.blocked).length;
             const oContraintes = contraintes.filter((c) => c.ouvrageId === o.id && c.status !== 'levee').length;
             const oTodos = todos.filter((t) => t.ouvrageId === o.id && !t.done).length;
             return (
@@ -222,7 +253,8 @@ export function DashboardPage({ tasks, history }: Props) {
                 ouvrage={o}
                 alertCount={oAlerts.length}
                 criticalCount={oAlerts.filter((a) => a.gap >= 40).length}
-                activeCards={oCards}
+                activeTasks={oActive}
+                blockedTasks={oBlocked}
                 openContraintes={oContraintes}
                 pendingTodos={oTodos}
                 onClick={() => navigate(`/ouvrage/${o.id}`)}
@@ -235,10 +267,10 @@ export function DashboardPage({ tasks, history }: Props) {
   );
 }
 
-function OuvrageCard({ ouvrage, alertCount, criticalCount, activeCards, openContraintes, pendingTodos, onClick }: {
+function OuvrageCard({ ouvrage, alertCount, criticalCount, activeTasks, blockedTasks, openContraintes, pendingTodos, onClick }: {
   ouvrage: ReturnType<typeof useOuvrageProgress>[0];
   alertCount: number; criticalCount: number;
-  activeCards: number; openContraintes: number; pendingTodos: number;
+  activeTasks: number; blockedTasks: number; openContraintes: number; pendingTodos: number;
   onClick: () => void;
 }) {
   const { nom, color, progress, theoretical, gap } = ouvrage;
@@ -256,7 +288,7 @@ function OuvrageCard({ ouvrage, alertCount, criticalCount, activeCards, openCont
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
-          {criticalCount > 0 && <Badge variant="red">⚠ {criticalCount}</Badge>}
+          {criticalCount > 0 && <Badge variant="red">{criticalCount}</Badge>}
           {alertCount > 0 && criticalCount === 0 && <Badge variant="amber">{alertCount}</Badge>}
           {status === 'done' && <Badge variant="green"><CheckCircle2 size={10} /> OK</Badge>}
           {status === 'pending' && <Badge variant="gray"><Clock size={10} /> En attente</Badge>}
@@ -282,7 +314,8 @@ function OuvrageCard({ ouvrage, alertCount, criticalCount, activeCards, openCont
           {gap >= 0 ? '+' : ''}{gap}% vs planning
         </span>
         <div className="flex items-center gap-2">
-          {activeCards > 0 && <span className="text-xs text-gray-400 flex items-center gap-0.5"><Kanban size={10} />{activeCards}</span>}
+          {activeTasks > 0 && <span className="text-xs text-blue-500 flex items-center gap-0.5"><Kanban size={10} />{activeTasks}</span>}
+          {blockedTasks > 0 && <span className="text-xs text-amber-500 flex items-center gap-0.5"><PauseCircle size={10} />{blockedTasks}</span>}
           {openContraintes > 0 && <span className="text-xs text-amber-500 flex items-center gap-0.5"><AlertTriangle size={10} />{openContraintes}</span>}
           {pendingTodos > 0 && <span className="text-xs text-gray-400 flex items-center gap-0.5"><ClipboardList size={10} />{pendingTodos}</span>}
           <ArrowRight size={14} className="text-gray-300 group-hover:text-blue-500 transition-colors" />

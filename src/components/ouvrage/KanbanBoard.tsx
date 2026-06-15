@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { useOuvrageStore } from '../../store/useOuvrageStore';
-import type { KanbanCard, KanbanStatus, Priority } from '../../store/useOuvrageStore';
+import { useState, useMemo } from 'react';
+import type { Task, Priority, KanbanStatus } from '../../data/tasks';
+import { getTaskStatus } from '../../data/tasks';
 import { Plus, Calendar, User, AlertCircle } from 'lucide-react';
 import { format, parseISO, isPast } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Button, Badge, Modal, Input, Textarea, Select } from '../ui/index';
+import { Button, Badge, Modal, Input, Select, ProgressBar } from '../ui/index';
+import { getDescendants, isLeaf } from '../../hooks/useOuvrageProgress';
 import {
   DndContext, DragOverlay, PointerSensor, useDroppable, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
@@ -12,7 +13,15 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-interface Props { ouvrageId: number }
+interface Props {
+  ouvrageId: number;
+  tasks: Task[];
+  color: string;
+  onUpdateTask: (id: number, updates: Partial<Omit<Task, 'id'>>) => void;
+  onUpdateProgress: (id: number, progress: number, notes?: string) => void;
+  onAddTask: (task: Omit<Task, 'id' | 'progress' | 'updatedAt'>) => number;
+  onDeleteTask: (id: number) => void;
+}
 
 const COLUMNS: { id: KanbanStatus; label: string; variant: 'gray' | 'blue' | 'amber' | 'green' }[] = [
   { id: 'planifie', label: 'Planifié', variant: 'gray' },
@@ -35,12 +44,11 @@ const PRIORITY_MAP: Record<Priority, { variant: 'gray' | 'blue' | 'amber' | 'red
   critique: { variant: 'red', label: 'Critique' },
 };
 
-const EMPTY_FORM = { titre: '', description: '', priority: 'moyen' as Priority, dueDate: '', assignedTo: '', status: 'planifie' as KanbanStatus };
-
-function KanbanCardItem({ card, onClick }: { card: KanbanCard; onClick: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
-  const overdue = card.dueDate && isPast(parseISO(card.dueDate)) && card.status !== 'termine';
-  const p = PRIORITY_MAP[card.priority];
+function TaskCard({ task, color, onClick }: { task: Task; color: string; onClick: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: String(task.id) });
+  const status = getTaskStatus(task);
+  const overdue = isPast(parseISO(task.fin)) && status !== 'termine';
+  const p = PRIORITY_MAP[task.priority ?? 'moyen'];
 
   return (
     <div
@@ -48,55 +56,26 @@ function KanbanCardItem({ card, onClick }: { card: KanbanCard; onClick: () => vo
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.35 : 1 }}
       {...attributes} {...listeners}
       onClick={onClick}
-      className="bg-white rounded-xl border border-gray-200 p-3.5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all cursor-grab active:cursor-grabbing group"
+      className="bg-white rounded-xl border border-gray-200 p-3.5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all cursor-grab active:cursor-grabbing"
     >
-      <p className="text-sm font-semibold text-gray-800 leading-snug mb-2">{card.titre}</p>
-      {card.description && <p className="text-xs text-gray-500 mb-2 line-clamp-2">{card.description}</p>}
-      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+      <p className="text-sm font-semibold text-gray-800 leading-snug mb-2">{task.nom}</p>
+      {/* Mini progress bar */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex-1"><ProgressBar value={task.progress} color={color} height="h-1" /></div>
+        <span className="text-xs font-bold tabular-nums" style={{ color }}>{task.progress}%</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
         <Badge variant={p.variant} dot>{p.label}</Badge>
-        {card.dueDate && (
-          <span className={`flex items-center gap-1 text-xs font-medium ${overdue ? 'text-red-500' : 'text-gray-400'}`}>
-            {overdue && <AlertCircle size={10} />}
-            <Calendar size={10} />
-            {format(parseISO(card.dueDate), 'dd/MM', { locale: fr })}
-          </span>
-        )}
-        {card.assignedTo && (
+        <span className={`flex items-center gap-1 text-xs font-medium ${overdue ? 'text-red-500' : 'text-gray-400'}`}>
+          {overdue && <AlertCircle size={10} />}
+          <Calendar size={10} />
+          {format(parseISO(task.fin), 'dd/MM', { locale: fr })}
+        </span>
+        {task.assignedTo && (
           <span className="flex items-center gap-1 text-xs text-gray-400">
-            <User size={10} />{card.assignedTo}
+            <User size={10} />{task.assignedTo}
           </span>
         )}
-      </div>
-    </div>
-  );
-}
-
-function CardForm({ initial, onSave, onCancel, title }: {
-  initial: typeof EMPTY_FORM;
-  onSave: (f: typeof EMPTY_FORM) => void;
-  onCancel: () => void;
-  title: string;
-}) {
-  const [form, setForm] = useState(initial);
-  const f = (k: keyof typeof EMPTY_FORM, v: string) => setForm((p) => ({ ...p, [k]: v }));
-
-  return (
-    <div className="space-y-4">
-      <Input label="Titre *" value={form.titre} onChange={(e) => f('titre', e.target.value)} placeholder="Titre de la carte..." />
-      <Textarea label="Description" value={form.description} onChange={(e) => f('description', e.target.value)} rows={3} placeholder="Description..." />
-      <div className="grid grid-cols-2 gap-3">
-        <Select label="Statut" value={form.status} onChange={(e) => f('status', e.target.value)}
-          options={COLUMNS.map((c) => ({ value: c.id, label: c.label }))} />
-        <Select label="Priorité" value={form.priority} onChange={(e) => f('priority', e.target.value)}
-          options={[{ value: 'faible', label: 'Faible' }, { value: 'moyen', label: 'Moyen' }, { value: 'eleve', label: 'Élevé' }, { value: 'critique', label: 'Critique' }]} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Input label="Échéance" type="date" value={form.dueDate} onChange={(e) => f('dueDate', e.target.value)} />
-        <Input label="Assigné à" value={form.assignedTo} onChange={(e) => f('assignedTo', e.target.value)} placeholder="Nom..." />
-      </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <Button variant="ghost" onClick={onCancel}>Annuler</Button>
-        <Button variant="primary" onClick={() => form.titre.trim() && onSave(form)} disabled={!form.titre.trim()}>{title}</Button>
       </div>
     </div>
   );
@@ -111,79 +90,224 @@ function DroppableColumn({ id, className, children }: { id: string; className: s
   );
 }
 
-export function KanbanBoard({ ouvrageId }: Props) {
-  const { cards, moveCard, deleteCard, addCard, updateCard } = useOuvrageStore();
-  const [addingTo, setAddingTo] = useState<KanbanStatus | null>(null);
-  const [editCard, setEditCard] = useState<KanbanCard | null>(null);
+export function KanbanBoard({ ouvrageId, tasks, color, onUpdateTask, onUpdateProgress, onAddTask, onDeleteTask }: Props) {
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState({ nom: '', debut: '', fin: '', duree: 1, priority: 'moyen' as Priority, assignedTo: '' });
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
-  const ouvrageCards = cards.filter((c) => c.ouvrageId === ouvrageId);
-  const activeCard = ouvrageCards.find((c) => c.id === activeId);
+  // Edit form state
+  const [editForm, setEditForm] = useState({ priority: 'moyen' as Priority, assignedTo: '', progress: 0, notes: '', blocked: false });
+
+  const allOuvrTasks = getDescendants(tasks, ouvrageId);
+  const leafTasks = useMemo(() =>
+    allOuvrTasks.filter((t) => isLeaf(t.id, allOuvrTasks)).sort((a, b) => {
+      const pOrder = ['critique', 'eleve', 'moyen', 'faible'];
+      return pOrder.indexOf(a.priority ?? 'moyen') - pOrder.indexOf(b.priority ?? 'moyen');
+    }),
+    [allOuvrTasks]
+  );
+
+  const activeTask = leafTasks.find((t) => String(t.id) === activeId);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   function onDragStart(e: DragStartEvent) { setActiveId(e.active.id as string); }
+
   function onDragEnd(e: DragEndEvent) {
     setActiveId(null);
     const { active, over } = e;
     if (!over) return;
-    const col = COLUMNS.find((c) => c.id === over.id);
-    if (col) { moveCard(active.id as string, col.id); return; }
-    const overCard = ouvrageCards.find((c) => c.id === over.id);
-    if (overCard) {
-      const activeCard2 = ouvrageCards.find((c) => c.id === active.id);
-      if (activeCard2 && overCard.status !== activeCard2.status) moveCard(active.id as string, overCard.status);
+    const taskId = Number(active.id);
+    const task = leafTasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const targetCol = COLUMNS.find((c) => c.id === over.id)?.id
+      ?? (() => { const overTask = leafTasks.find((t) => String(t.id) === over.id); return overTask ? getTaskStatus(overTask) : null; })();
+
+    if (!targetCol) return;
+    const currentStatus = getTaskStatus(task);
+    if (targetCol === currentStatus) return;
+
+    switch (targetCol) {
+      case 'planifie':
+        onUpdateProgress(taskId, 0);
+        onUpdateTask(taskId, { blocked: false });
+        break;
+      case 'en_cours':
+        onUpdateTask(taskId, { blocked: false });
+        if (task.progress === 0) onUpdateProgress(taskId, 5);
+        break;
+      case 'en_attente':
+        onUpdateTask(taskId, { blocked: true });
+        break;
+      case 'termine':
+        onUpdateProgress(taskId, 100);
+        onUpdateTask(taskId, { blocked: false });
+        break;
     }
+  }
+
+  function openEdit(t: Task) {
+    setEditTask(t);
+    setEditForm({
+      priority: t.priority ?? 'moyen',
+      assignedTo: t.assignedTo ?? '',
+      progress: t.progress,
+      notes: t.notes ?? '',
+      blocked: t.blocked ?? false,
+    });
+  }
+
+  function saveEdit() {
+    if (!editTask) return;
+    onUpdateTask(editTask.id, {
+      priority: editForm.priority,
+      assignedTo: editForm.assignedTo || undefined,
+      blocked: editForm.blocked,
+    });
+    onUpdateProgress(editTask.id, editForm.progress, editForm.notes);
+    setEditTask(null);
+  }
+
+  function openAdd() {
+    const today = new Date().toISOString().split('T')[0];
+    const parent = allOuvrTasks.find((t) => t.id === ouvrageId);
+    setAddForm({
+      nom: '',
+      debut: parent?.debut ?? today,
+      fin: parent?.fin ?? today,
+      duree: 1,
+      priority: 'moyen',
+      assignedTo: '',
+    });
+    setShowAdd(true);
+  }
+
+  function saveAdd() {
+    if (!addForm.nom.trim()) return;
+    onAddTask({
+      nom: addForm.nom,
+      debut: addForm.debut,
+      fin: addForm.fin,
+      duree: addForm.duree,
+      parentId: ouvrageId,
+      level: (allOuvrTasks.find((t) => t.id === ouvrageId)?.level ?? 1) + 1,
+      priority: addForm.priority,
+      assignedTo: addForm.assignedTo || undefined,
+    });
+    setShowAdd(false);
   }
 
   return (
     <div>
-      {/* Add card modal */}
-      <Modal open={addingTo !== null} onClose={() => setAddingTo(null)} title="Nouvelle carte">
-        <CardForm
-          initial={{ ...EMPTY_FORM, status: addingTo ?? 'planifie' }}
-          onSave={(f) => { addCard({ ouvrageId, titre: f.titre, description: f.description || undefined, status: f.status, priority: f.priority, dueDate: f.dueDate || undefined, assignedTo: f.assignedTo || undefined }); setAddingTo(null); }}
-          onCancel={() => setAddingTo(null)}
-          title="Créer"
-        />
+      {/* Add task modal */}
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Nouvelle tâche">
+        <div className="space-y-4">
+          <Input label="Nom *" value={addForm.nom} onChange={(e) => setAddForm({ ...addForm, nom: e.target.value })} placeholder="Ex: Ferraillage semelle S1" />
+          <div className="grid grid-cols-3 gap-3">
+            <Input label="Début" type="date" value={addForm.debut} onChange={(e) => setAddForm({ ...addForm, debut: e.target.value })} />
+            <Input label="Fin" type="date" value={addForm.fin} onChange={(e) => setAddForm({ ...addForm, fin: e.target.value })} />
+            <Input label="Durée (j)" type="number" value={String(addForm.duree)} onChange={(e) => setAddForm({ ...addForm, duree: Number(e.target.value) })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Select label="Priorité" value={addForm.priority} onChange={(e) => setAddForm({ ...addForm, priority: e.target.value as Priority })}
+              options={[{ value: 'faible', label: 'Faible' }, { value: 'moyen', label: 'Moyen' }, { value: 'eleve', label: 'Élevé' }, { value: 'critique', label: 'Critique' }]} />
+            <Input label="Assigné à" value={addForm.assignedTo} onChange={(e) => setAddForm({ ...addForm, assignedTo: e.target.value })} placeholder="Nom..." />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setShowAdd(false)}>Annuler</Button>
+            <Button variant="primary" onClick={saveAdd} disabled={!addForm.nom.trim()}>Créer</Button>
+          </div>
+        </div>
       </Modal>
 
-      {/* Edit card modal */}
-      <Modal open={editCard !== null} onClose={() => setEditCard(null)} title="Modifier la carte">
-        {editCard && (
+      {/* Edit task modal */}
+      <Modal open={editTask !== null} onClose={() => setEditTask(null)} title={editTask ? `Modifier — ${editTask.nom}` : ''}>
+        {editTask && (
           <div className="space-y-4">
-            <CardForm
-              initial={{ titre: editCard.titre, description: editCard.description ?? '', priority: editCard.priority, dueDate: editCard.dueDate ?? '', assignedTo: editCard.assignedTo ?? '', status: editCard.status }}
-              onSave={(f) => { updateCard(editCard.id, { ...f, description: f.description || undefined, dueDate: f.dueDate || undefined, assignedTo: f.assignedTo || undefined }); setEditCard(null); }}
-              onCancel={() => setEditCard(null)}
-              title="Enregistrer"
-            />
-            <div className="border-t pt-3">
-              <Button variant="danger" size="sm" onClick={() => { deleteCard(editCard.id); setEditCard(null); }}>Supprimer la carte</Button>
+            <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
+              <p><span className="font-semibold text-gray-700">Dates :</span> {format(parseISO(editTask.debut), 'dd/MM/yyyy', { locale: fr })} → {format(parseISO(editTask.fin), 'dd/MM/yyyy', { locale: fr })}</p>
+              <p><span className="font-semibold text-gray-700">Durée :</span> {editTask.duree} jours</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Select label="Priorité" value={editForm.priority} onChange={(e) => setEditForm({ ...editForm, priority: e.target.value as Priority })}
+                options={[{ value: 'faible', label: 'Faible' }, { value: 'moyen', label: 'Moyen' }, { value: 'eleve', label: 'Élevé' }, { value: 'critique', label: 'Critique' }]} />
+              <Input label="Assigné à" value={editForm.assignedTo} onChange={(e) => setEditForm({ ...editForm, assignedTo: e.target.value })} placeholder="Nom..." />
+            </div>
+            {/* Progress */}
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Avancement</label>
+              <div className="flex items-center gap-3">
+                <input type="range" min={0} max={100} step={5} value={editForm.progress}
+                  onChange={(e) => setEditForm({ ...editForm, progress: Number(e.target.value) })}
+                  className="flex-1 accent-blue-600 h-2" />
+                <span className="text-lg font-black w-14 text-right tabular-nums" style={{ color }}>{editForm.progress}%</span>
+              </div>
+              <div className="flex gap-1 mt-1.5">
+                {[0, 25, 50, 75, 100].map((p) => (
+                  <button key={p} onClick={() => setEditForm({ ...editForm, progress: p })}
+                    className={`px-2 py-0.5 rounded text-xs font-semibold transition-colors ${editForm.progress === p ? 'bg-blue-700 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{p}%</button>
+                ))}
+              </div>
+            </div>
+            {/* Blocked toggle */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={editForm.blocked} onChange={(e) => setEditForm({ ...editForm, blocked: e.target.checked })}
+                className="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400" />
+              <span className="text-sm text-gray-700">En attente / bloquée</span>
+              {editForm.blocked && <Badge variant="amber">Bloquée</Badge>}
+            </label>
+            <Input label="Observations" value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} placeholder="Notes terrain..." />
+            <div className="flex items-center justify-between pt-2 border-t">
+              <Button variant="danger" size="sm" onClick={() => { setEditTask(null); setConfirmDelete(editTask.id); }}>Supprimer</Button>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setEditTask(null)}>Annuler</Button>
+                <Button variant="primary" onClick={saveEdit}>Enregistrer</Button>
+              </div>
             </div>
           </div>
         )}
       </Modal>
 
+      {/* Delete confirm */}
+      <Modal open={confirmDelete !== null} onClose={() => setConfirmDelete(null)} title="Supprimer la tâche ?">
+        {confirmDelete !== null && (() => {
+          const t = leafTasks.find((x) => x.id === confirmDelete);
+          return (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-700">Supprimer <span className="font-semibold">"{t?.nom}"</span> ?</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setConfirmDelete(null)}>Annuler</Button>
+                <Button variant="danger" onClick={() => { onDeleteTask(confirmDelete); setConfirmDelete(null); }}>Supprimer</Button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
+
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div className="grid grid-cols-4 gap-4 min-h-[500px]">
           {COLUMNS.map((col) => {
-            const colCards = ouvrageCards.filter((c) => c.status === col.id);
+            const colTasks = leafTasks.filter((t) => getTaskStatus(t) === col.id);
             return (
               <div key={col.id} className="flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Badge variant={col.variant}>{col.label}</Badge>
-                    <span className="text-xs text-gray-400 font-semibold">{colCards.length}</span>
+                    <span className="text-xs text-gray-400 font-semibold">{colTasks.length}</span>
                   </div>
-                  <button onClick={() => setAddingTo(col.id)} className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg p-1 transition-colors"><Plus size={14} /></button>
+                  {col.id === 'planifie' && (
+                    <button onClick={openAdd} className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg p-1 transition-colors"><Plus size={14} /></button>
+                  )}
                 </div>
                 <DroppableColumn id={col.id} className={`flex-1 rounded-2xl border-2 border-dashed p-2 space-y-2 transition-colors ${COL_STYLE[col.id]}`}>
-                  <SortableContext items={colCards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-                    {colCards.map((card) => (
-                      <KanbanCardItem key={card.id} card={card} onClick={() => setEditCard(card)} />
+                  <SortableContext items={colTasks.map((t) => String(t.id))} strategy={verticalListSortingStrategy}>
+                    {colTasks.map((task) => (
+                      <TaskCard key={task.id} task={task} color={color} onClick={() => openEdit(task)} />
                     ))}
                   </SortableContext>
-                  {colCards.length === 0 && (
+                  {colTasks.length === 0 && (
                     <div className="flex items-center justify-center h-20 text-xs text-gray-300">Vide</div>
                   )}
                 </DroppableColumn>
@@ -192,9 +316,13 @@ export function KanbanBoard({ ouvrageId }: Props) {
           })}
         </div>
         <DragOverlay>
-          {activeCard && (
+          {activeTask && (
             <div className="bg-white rounded-xl border-2 border-blue-400 p-3.5 shadow-2xl rotate-1 w-56 opacity-95">
-              <p className="text-sm font-semibold text-gray-800">{activeCard.titre}</p>
+              <p className="text-sm font-semibold text-gray-800">{activeTask.nom}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="flex-1"><ProgressBar value={activeTask.progress} color={color} height="h-1" /></div>
+                <span className="text-xs font-bold" style={{ color }}>{activeTask.progress}%</span>
+              </div>
             </div>
           )}
         </DragOverlay>

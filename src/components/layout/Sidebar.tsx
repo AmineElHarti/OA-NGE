@@ -45,7 +45,7 @@ export function Sidebar({ tasks, onClose }: Props) {
       {/* Main nav */}
       <div className="px-2 py-3 border-b border-slate-800">
         <SidebarItem icon={<LayoutDashboard size={15} />} label="Tableau de bord" active={location.pathname === '/'} onClick={() => go('/')} />
-        <SidebarItem icon={<ListTodo size={15} />} label="Toutes les tâches" active={location.pathname === '/taches'} onClick={() => go('/taches')} />
+        <SidebarItem icon={<ListTodo size={15} />} label="Mise à jour" active={location.pathname === '/taches'} onClick={() => go('/taches')} />
       </div>
 
       {/* Ouvrages */}

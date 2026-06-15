@@ -42,7 +42,7 @@ function AppShell() {
                   <Menu size={18} />
                 </button>
                 <h1 className="font-bold text-gray-900 text-sm">
-                  {location.pathname === '/' ? 'Tableau de bord global' : 'Planification — toutes les tâches'}
+                  {location.pathname === '/' ? 'Tableau de bord global' : 'Suivi des tâches'}
                 </h1>
               </div>
               <div className="flex items-center gap-2">

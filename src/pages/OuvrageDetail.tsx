@@ -31,7 +31,7 @@ export function OuvrageDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('avancement');
-  const { tasks, history, updateProgress, userName } = useStore();
+  const { tasks, history, updateProgress, updateTask, addTask, deleteTask, userName } = useStore();
   const { contraintes, todos } = useOuvrageStore();
 
   const ouvrageId = Number(id);
@@ -105,7 +105,7 @@ export function OuvrageDetail() {
 
       {/* Tab content */}
       <main className="max-w-screen-xl mx-auto px-6 py-6">
-        {tab === 'avancement' && <AvancementTab ouvrageId={ouvrageId} tasks={tasks} history={history} color={ouvrage.color} onUpdate={updateProgress} />}
+        {tab === 'avancement' && <AvancementTab ouvrageId={ouvrageId} tasks={tasks} history={history} color={ouvrage.color} onUpdate={updateProgress} onUpdateTask={updateTask} onAddTask={addTask} onDeleteTask={deleteTask} />}
         {tab === 'kanban' && <KanbanBoard ouvrageId={ouvrageId} />}
         {tab === 'contraintes' && <ContraintesTab ouvrageId={ouvrageId} />}
         {tab === 'notes' && <NotesTab ouvrageId={ouvrageId} userName={userName} />}

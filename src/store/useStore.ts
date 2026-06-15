@@ -18,10 +18,13 @@ interface Store {
   loading: boolean;
   synced: boolean;
   userName: string;
+  nextId: number;
   setUserName: (name: string) => void;
   fetchFromSupabase: () => Promise<void>;
   updateProgress: (id: number, progress: number, notes?: string) => Promise<void>;
-  updateTask: (id: number, updates: Partial<Pick<Task, 'nom' | 'debut' | 'fin' | 'duree'>>) => void;
+  updateTask: (id: number, updates: Partial<Omit<Task, 'id'>>) => void;
+  addTask: (task: Omit<Task, 'id' | 'progress' | 'updatedAt'>) => number;
+  deleteTask: (id: number) => void;
   resetAll: () => Promise<void>;
 }
 
@@ -37,6 +40,7 @@ export const useStore = create<Store>()(
       loading: false,
       synced: false,
       userName: 'Utilisateur',
+      nextId: 10000,
 
       setUserName: (name) => set({ userName: name }),
 
@@ -52,7 +56,6 @@ export const useStore = create<Store>()(
             });
             set({ tasks: merged, synced: true });
           } else {
-            // First time: seed tasks
             const inserts = get().tasks.map((t) => ({
               id: t.id, nom: t.nom, duree: t.duree, debut: t.debut, fin: t.fin,
               level: t.level, parent_id: t.parentId ?? null, is_milestone: t.isMilestone ?? false,
@@ -61,7 +64,6 @@ export const useStore = create<Store>()(
             await supabase.from('tasks').insert(inserts);
             set({ synced: true });
           }
-          // Fetch history
           const { data: hist } = await supabase.from('progress_history').select('*').order('recorded_at', { ascending: true });
           if (hist) set({ history: hist as ProgressEntry[] });
         } finally {
@@ -71,7 +73,6 @@ export const useStore = create<Store>()(
 
       updateProgress: async (id, progress, notes) => {
         const userName = get().userName;
-        // Local update
         set((state) => ({
           tasks: state.tasks.map((t) =>
             t.id === id ? { ...t, progress, notes: notes ?? t.notes, updatedAt: new Date().toISOString() } : t
@@ -81,7 +82,6 @@ export const useStore = create<Store>()(
             { task_id: id, progress, notes: notes ?? '', recorded_at: new Date().toISOString(), recorded_by: userName },
           ],
         }));
-        // Remote
         if (supabase) {
           await supabase.from('tasks').upsert({ id, progress, notes: notes ?? null, updated_at: new Date().toISOString(), updated_by: userName });
           await supabase.from('progress_history').insert({ task_id: id, progress, notes: notes ?? null, recorded_by: userName });
@@ -90,19 +90,42 @@ export const useStore = create<Store>()(
 
       updateTask: (id, updates) => {
         set((state) => ({
-          tasks: state.tasks.map((t) => t.id === id ? { ...t, ...updates } : t),
+          tasks: state.tasks.map((t) => t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t),
+        }));
+      },
+
+      addTask: (task) => {
+        const id = get().nextId;
+        const newTask: Task = { ...task, id, progress: 0 };
+        set((state) => ({
+          tasks: [...state.tasks, newTask],
+          nextId: state.nextId + 1,
+        }));
+        return id;
+      },
+
+      deleteTask: (id) => {
+        const { tasks } = get();
+        const toDelete = new Set<number>();
+        function collect(targetId: number) {
+          toDelete.add(targetId);
+          tasks.filter((t) => t.parentId === targetId).forEach((t) => collect(t.id));
+        }
+        collect(id);
+        set((state) => ({
+          tasks: state.tasks.filter((t) => !toDelete.has(t.id)),
         }));
       },
 
       resetAll: async () => {
         const fresh = initTasks();
-        set({ tasks: fresh, history: [] });
+        set({ tasks: fresh, history: [], nextId: 10000 });
         if (supabase) {
           await supabase.from('tasks').upsert(fresh.map((t) => ({ id: t.id, progress: 0, notes: null })));
           await supabase.from('progress_history').delete().neq('id', '00000000-0000-0000-0000-000000000000');
         }
       },
     }),
-    { name: 'oa-nge-store', partialize: (s) => ({ tasks: s.tasks, history: s.history, userName: s.userName }) }
+    { name: 'oa-nge-store', partialize: (s) => ({ tasks: s.tasks, history: s.history, userName: s.userName, nextId: s.nextId }) }
   )
 );

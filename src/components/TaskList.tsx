@@ -11,7 +11,6 @@ import { fr } from 'date-fns/locale';
 interface Props {
   tasks: Task[];
   onUpdate: (id: number, progress: number, notes?: string) => void;
-  onUpdateTask: (id: number, updates: Partial<Pick<Task, 'nom' | 'debut' | 'fin' | 'duree'>>) => void;
 }
 
 function fmt(d: string) {

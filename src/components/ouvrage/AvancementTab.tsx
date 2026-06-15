@@ -269,7 +269,7 @@ export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate, onUp
                       {isEdit ? (
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <input type="range" min={0} max={100} step={5} value={editing.progress}
+                            <input type="range" min={0} max={100} step={1} value={editing.progress}
                               onChange={(e) => setEditing({ ...editing, progress: +e.target.value })}
                               className="flex-1 accent-blue-600 h-1.5" />
                             <span className="text-xs font-black w-8 text-right tabular-nums" style={{ color }}>{editing.progress}%</span>

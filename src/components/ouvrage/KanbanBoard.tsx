@@ -239,10 +239,14 @@ export function KanbanBoard({ ouvrageId, tasks, color, onUpdateTask, onUpdatePro
             <div>
               <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Avancement</label>
               <div className="flex items-center gap-3">
-                <input type="range" min={0} max={100} step={5} value={editForm.progress}
+                <input type="range" min={0} max={100} step={1} value={editForm.progress}
                   onChange={(e) => setEditForm({ ...editForm, progress: Number(e.target.value) })}
                   className="flex-1 accent-blue-600 h-2" />
-                <span className="text-lg font-black w-14 text-right tabular-nums" style={{ color }}>{editForm.progress}%</span>
+                <input type="number" min={0} max={100} value={editForm.progress}
+                  onChange={(e) => setEditForm({ ...editForm, progress: Math.min(100, Math.max(0, Number(e.target.value))) })}
+                  className="w-16 text-lg font-black text-right tabular-nums border border-gray-200 rounded-lg px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  style={{ color }} />
+                <span className="text-sm text-gray-400">%</span>
               </div>
               <div className="flex gap-1 mt-1.5">
                 {[0, 25, 50, 75, 100].map((p) => (

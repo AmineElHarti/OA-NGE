@@ -180,7 +180,7 @@ function QuickUpdateView({ tasks, onUpdate }: Pick<Props, 'tasks' | 'onUpdate'>)
                         {/* Progress slider */}
                         <div className="flex items-center gap-3">
                           <input
-                            type="range" min={0} max={100} step={5}
+                            type="range" min={0} max={100} step={1}
                             value={v.progress}
                             onChange={(e) => setValue(t.id, Number(e.target.value), v.notes)}
                             className="flex-1 accent-blue-600 h-2 cursor-pointer"

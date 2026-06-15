@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 export type KanbanStatus = 'planifie' | 'en_cours' | 'en_attente' | 'termine';
 export type Priority = 'faible' | 'moyen' | 'eleve' | 'critique';
 export type ContrainteStatus = 'identifiee' | 'en_cours_levee' | 'levee';
-export type TypeReseau = 'OCP' | 'ONEE_ELEC' | 'ONEE_EAU' | 'IAM' | 'ONCF' | 'AUTOROUTE' | 'ROUTE' | 'ASSAINISSEMENT' | 'HYDRAULIQUE' | 'AUTRE';
+export type TypeReseau = string;
 
 export interface KanbanCard {
   id: string;
@@ -23,6 +23,7 @@ export interface Contrainte {
   id: string;
   ouvrageId: number;
   typeReseau: TypeReseau;
+  nature?: string;
   description: string;
   pkLocalisation?: string;
   status: ContrainteStatus;
@@ -53,11 +54,37 @@ export interface Todo {
   createdAt: string;
 }
 
+export interface ContrainteOption {
+  value: string;
+  label: string;
+}
+
+const DEFAULT_CONCESSIONNAIRES: ContrainteOption[] = [
+  { value: 'OCP', label: 'OCP — Phosphate' },
+  { value: 'ONEE_ELEC', label: 'ONEE — Électricité' },
+  { value: 'ONEE_EAU', label: 'ONEE — Eau potable' },
+  { value: 'IAM', label: 'Maroc Telecom / IAM' },
+  { value: 'ONCF', label: 'ONCF — Ferroviaire existant' },
+  { value: 'ADM', label: 'ADM — Autoroutes du Maroc' },
+  { value: 'AUTRE', label: 'Autre' },
+];
+
+const DEFAULT_NATURES: ContrainteOption[] = [
+  { value: 'DEPLACEMENT', label: 'Déplacement de réseau' },
+  { value: 'PROTECTION', label: 'Protection de réseau' },
+  { value: 'COUPURE', label: 'Coupure temporaire' },
+  { value: 'TRAVERSEE', label: 'Traversée' },
+  { value: 'DEVIATION', label: 'Déviation provisoire' },
+  { value: 'AUTRE', label: 'Autre' },
+];
+
 interface OuvrageStore {
   cards: KanbanCard[];
   contraintes: Contrainte[];
   notes: Note[];
   todos: Todo[];
+  concessionnaires: ContrainteOption[];
+  naturesContrainte: ContrainteOption[];
 
   // Kanban
   addCard: (card: Omit<KanbanCard, 'id' | 'createdAt'>) => void;
@@ -79,6 +106,10 @@ interface OuvrageStore {
   updateTodo: (id: string, updates: Partial<Todo>) => void;
   toggleTodo: (id: string) => void;
   deleteTodo: (id: string) => void;
+
+  // Custom lists
+  setConcessionnaires: (list: ContrainteOption[]) => void;
+  setNaturesContrainte: (list: ContrainteOption[]) => void;
 }
 
 function uid() {
@@ -92,6 +123,8 @@ export const useOuvrageStore = create<OuvrageStore>()(
       contraintes: [],
       notes: [],
       todos: [],
+      concessionnaires: DEFAULT_CONCESSIONNAIRES,
+      naturesContrainte: DEFAULT_NATURES,
 
       addCard: (card) => {
         const newCard: KanbanCard = { ...card, id: uid(), createdAt: new Date().toISOString() };
@@ -155,6 +188,8 @@ export const useOuvrageStore = create<OuvrageStore>()(
         set((s) => ({ todos: s.todos.filter((t) => t.id !== id) }));
         if (supabase) supabase.from('todos').delete().eq('id', id);
       },
+      setConcessionnaires: (list) => set({ concessionnaires: list }),
+      setNaturesContrainte: (list) => set({ naturesContrainte: list }),
     }),
     { name: 'oa-nge-ouvrage-store' }
   )

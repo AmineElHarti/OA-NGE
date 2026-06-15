@@ -124,9 +124,21 @@ export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate, onUp
             setAddForm({ ...addForm, parentId: pid, level: (parent?.level ?? 1) + 1 });
           }} options={parentOptions} />
           <div className="grid grid-cols-3 gap-3">
-            <Input label="Début" type="date" value={addForm.debut} onChange={(e) => setAddForm({ ...addForm, debut: e.target.value })} />
-            <Input label="Fin" type="date" value={addForm.fin} onChange={(e) => setAddForm({ ...addForm, fin: e.target.value })} />
-            <Input label="Durée (jours)" type="number" value={String(addForm.duree)} onChange={(e) => setAddForm({ ...addForm, duree: Number(e.target.value) })} />
+            <Input label="Début" type="date" value={addForm.debut} onChange={(e) => {
+              const d = e.target.value;
+              const f = new Date(new Date(d).getTime() + addForm.duree * 86400000).toISOString().split('T')[0];
+              setAddForm({ ...addForm, debut: d, fin: f });
+            }} />
+            <Input label="Fin" type="date" value={addForm.fin} onChange={(e) => {
+              const newFin = e.target.value;
+              const days = Math.max(1, Math.round((new Date(newFin).getTime() - new Date(addForm.debut).getTime()) / 86400000));
+              setAddForm({ ...addForm, fin: newFin, duree: days });
+            }} />
+            <Input label="Durée (jours)" type="number" value={String(addForm.duree)} onChange={(e) => {
+              const days = Math.max(1, Number(e.target.value));
+              const f = new Date(new Date(addForm.debut).getTime() + days * 86400000).toISOString().split('T')[0];
+              setAddForm({ ...addForm, duree: days, fin: f });
+            }} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" onClick={() => setShowAdd(false)}>Annuler</Button>
@@ -269,7 +281,11 @@ export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate, onUp
                     {/* Fin */}
                     <td className="py-2 px-3 text-xs text-gray-400 whitespace-nowrap">
                       {isEdit ? (
-                        <input type="date" value={editing.fin} onChange={(e) => setEditing({ ...editing, fin: e.target.value })}
+                        <input type="date" value={editing.fin} onChange={(e) => {
+                            const newFin = e.target.value;
+                            const days = Math.max(1, Math.round((new Date(newFin).getTime() - new Date(editing.debut).getTime()) / 86400000));
+                            setEditing({ ...editing, fin: newFin, duree: days });
+                          }}
                           className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none" />
                       ) : (
                         <span className="font-mono">{format(parseISO(t.fin), 'dd/MM/yy', { locale: fr })}</span>

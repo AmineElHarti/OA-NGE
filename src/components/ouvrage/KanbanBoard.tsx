@@ -220,7 +220,11 @@ export function KanbanBoard({ ouvrageId, tasks, color, onUpdateTask, onUpdatePro
               const f = new Date(new Date(d).getTime() + addForm.duree * 86400000).toISOString().split('T')[0];
               setAddForm({ ...addForm, debut: d, fin: f });
             }} />
-            <Input label="Fin" type="date" value={addForm.fin} onChange={(e) => setAddForm({ ...addForm, fin: e.target.value })} />
+            <Input label="Fin" type="date" value={addForm.fin} onChange={(e) => {
+              const newFin = e.target.value;
+              const days = Math.max(1, Math.round((new Date(newFin).getTime() - new Date(addForm.debut).getTime()) / 86400000));
+              setAddForm({ ...addForm, fin: newFin, duree: days });
+            }} />
             <Input label="Durée (j)" type="number" value={String(addForm.duree)} onChange={(e) => {
               const days = Math.max(1, Number(e.target.value));
               const f = new Date(new Date(addForm.debut).getTime() + days * 86400000).toISOString().split('T')[0];
@@ -251,7 +255,11 @@ export function KanbanBoard({ ouvrageId, tasks, color, onUpdateTask, onUpdatePro
                 const newFin = new Date(new Date(newDebut).getTime() + days * 86400000).toISOString().split('T')[0];
                 setEditForm({ ...editForm, debut: newDebut, fin: newFin });
               }} />
-              <Input label="Fin" type="date" value={editForm.fin} onChange={(e) => setEditForm({ ...editForm, fin: e.target.value })} />
+              <Input label="Fin" type="date" value={editForm.fin} onChange={(e) => {
+                const newFin = e.target.value;
+                const days = Math.max(1, Math.round((new Date(newFin).getTime() - new Date(editForm.debut).getTime()) / 86400000));
+                setEditForm({ ...editForm, fin: newFin, duree: days });
+              }} />
               <Input label="Durée (j)" type="number" value={String(editForm.duree)} onChange={(e) => {
                 const days = Math.max(1, Number(e.target.value));
                 const newFin = new Date(new Date(editForm.debut).getTime() + days * 86400000).toISOString().split('T')[0];

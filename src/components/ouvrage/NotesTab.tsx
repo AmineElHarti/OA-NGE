@@ -3,6 +3,7 @@ import { useOuvrageStore } from '../../store/useOuvrageStore';
 import { Trash2, Send, MessageSquare } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { Card, SectionHeader, EmptyState } from '../ui/index';
 
 interface Props { ouvrageId: number; userName: string }
 
@@ -19,40 +20,38 @@ export function NotesTab({ ouvrageId, userName }: Props) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Add note */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+    <div className="space-y-5">
+      <SectionHeader title="Notes & observations" description="Comptes-rendus, remarques, informations de terrain" />
+
+      <Card>
         <textarea
           value={contenu}
           onChange={(e) => setContenu(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) save(); }}
           placeholder="Saisir une note, observation, compte-rendu... (Ctrl+Entrée pour envoyer)"
           rows={3}
-          className="w-full text-sm resize-none focus:outline-none placeholder-gray-400"
+          className="w-full text-sm resize-none focus:outline-none placeholder-gray-400 text-gray-800"
         />
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-          <span className="text-xs text-gray-400">Par <strong>{userName}</strong> · {format(new Date(), 'dd MMM yyyy HH:mm', { locale: fr })}</span>
+          <span className="text-xs text-gray-400">
+            Par <span className="font-semibold text-gray-600">{userName}</span> · {format(new Date(), 'dd MMM yyyy HH:mm', { locale: fr })}
+          </span>
           <button
             onClick={save}
             disabled={!contenu.trim()}
             className="flex items-center gap-1.5 bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            <Send size={12} /> Ajouter la note
+            <Send size={12} /> Ajouter
           </button>
         </div>
-      </div>
+      </Card>
 
-      {/* Notes list */}
       {items.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
-          <MessageSquare size={32} className="mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Aucune note pour cet ouvrage</p>
-          <p className="text-xs mt-1">Ajoutez des observations, comptes-rendus, remarques...</p>
-        </div>
+        <EmptyState icon={<MessageSquare size={40} />} title="Aucune note" description="Ajoutez des observations, comptes-rendus, remarques de terrain..." />
       ) : (
         <div className="space-y-3">
           {items.map((n) => (
-            <div key={n.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 group">
+            <Card key={n.id} className="group">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{n.contenu}</p>
@@ -68,7 +67,7 @@ export function NotesTab({ ouvrageId, userName }: Props) {
                   <Trash2 size={14} />
                 </button>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}

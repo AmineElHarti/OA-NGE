@@ -6,7 +6,7 @@ import { format, parseISO, isPast } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Button, Badge, Modal, Input, Textarea, Select } from '../ui/index';
 import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  DndContext, DragOverlay, PointerSensor, useDroppable, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -102,6 +102,15 @@ function CardForm({ initial, onSave, onCancel, title }: {
   );
 }
 
+function DroppableColumn({ id, className, children }: { id: string; className: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={`${className} ${isOver ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}>
+      {children}
+    </div>
+  );
+}
+
 export function KanbanBoard({ ouvrageId }: Props) {
   const { cards, moveCard, deleteCard, addCard, updateCard } = useOuvrageStore();
   const [addingTo, setAddingTo] = useState<KanbanStatus | null>(null);
@@ -168,7 +177,7 @@ export function KanbanBoard({ ouvrageId }: Props) {
                   </div>
                   <button onClick={() => setAddingTo(col.id)} className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg p-1 transition-colors"><Plus size={14} /></button>
                 </div>
-                <div id={col.id} className={`flex-1 rounded-2xl border-2 border-dashed p-2 space-y-2 transition-colors ${COL_STYLE[col.id]}`}>
+                <DroppableColumn id={col.id} className={`flex-1 rounded-2xl border-2 border-dashed p-2 space-y-2 transition-colors ${COL_STYLE[col.id]}`}>
                   <SortableContext items={colCards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
                     {colCards.map((card) => (
                       <KanbanCardItem key={card.id} card={card} onClick={() => setEditCard(card)} />
@@ -177,7 +186,7 @@ export function KanbanBoard({ ouvrageId }: Props) {
                   {colCards.length === 0 && (
                     <div className="flex items-center justify-center h-20 text-xs text-gray-300">Vide</div>
                   )}
-                </div>
+                </DroppableColumn>
               </div>
             );
           })}

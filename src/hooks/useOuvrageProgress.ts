@@ -78,6 +78,27 @@ export function useOuvrageProgress(tasks: Task[]): OuvrageMetrics[] {
   );
 }
 
+export function getGeneralTasks(tasks: Task[]): Task[] {
+  const excludeIds = new Set<number>();
+  OUVRAGES.forEach((o) => {
+    getDescendants(tasks, o.id).forEach((t) => excludeIds.add(t.id));
+  });
+  const rootIds = tasks
+    .filter((t) => t.parentId === 1 && !excludeIds.has(t.id))
+    .map((t) => t.id);
+  const seen = new Set<number>();
+  const result: Task[] = [];
+  rootIds.forEach((rid) => {
+    getDescendants(tasks, rid).forEach((t) => {
+      if (!excludeIds.has(t.id) && !seen.has(t.id)) {
+        seen.add(t.id);
+        result.push(t);
+      }
+    });
+  });
+  return result;
+}
+
 export function useGlobalProgress(tasks: Task[]) {
   return useMemo(() => {
     const progress = computeProgress(tasks);

@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Building2, CalendarDays, Users, FileText, Settings, X } from 'lucide-react';
+import { LayoutDashboard, Building2, Layers, CalendarDays, Users, FileText, Settings, X } from 'lucide-react';
 
 interface Props {
   onClose?: () => void;
@@ -8,6 +8,7 @@ interface Props {
 const NAV = [
   { path: '/', label: 'Vue d\'ensemble', icon: LayoutDashboard },
   { path: '/ouvrages', label: 'Ouvrages', icon: Building2 },
+  { path: '/travaux-generaux', label: 'Travaux généraux', icon: Layers },
   { path: '/semaine', label: 'Cette semaine', icon: CalendarDays },
   { path: '/coordination', label: 'Coordination', icon: Users },
   { path: '/rapports', label: 'Rapports', icon: FileText },

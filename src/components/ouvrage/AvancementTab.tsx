@@ -7,7 +7,10 @@ import { getDescendants } from '../../hooks/useOuvrageProgress';
 import { Card, ProgressBar, Button, Modal, Input, Select, showToast } from '../ui/index';
 
 interface Props {
-  ouvrageId: number;
+  ouvrageId?: number;
+  rootIds?: number[];
+  hideRoots?: boolean;
+  label?: string;
   tasks: Task[];
   color: string;
   onUpdate: (id: number, progress: number, notes?: string) => void;
@@ -28,14 +31,20 @@ interface EditState {
 
 const EMPTY_ADD = { nom: '', debut: '', fin: '', duree: 1, parentId: 0, level: 3 };
 
-export function AvancementTab({ ouvrageId, tasks, color, onUpdate, onUpdateTask, onAddTask, onDeleteTask }: Props) {
+export function AvancementTab({ ouvrageId, rootIds: rootIdsProp, hideRoots = ouvrageId !== undefined, label, tasks, color, onUpdate, onUpdateTask, onAddTask, onDeleteTask }: Props) {
+  const rootIds = rootIdsProp ?? (ouvrageId !== undefined ? [ouvrageId] : []);
   const [editing, setEditing] = useState<EditState | null>(null);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set([ouvrageId]));
+  const [expanded, setExpanded] = useState<Set<number>>(new Set(rootIds));
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState(EMPTY_ADD);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
-  const ouvrTasks = getDescendants(tasks, ouvrageId);
+  const seen = new Set<number>();
+  const ouvrTasks = rootIds.flatMap((rid) => getDescendants(tasks, rid)).filter((t) => {
+    if (seen.has(t.id)) return false;
+    seen.add(t.id);
+    return true;
+  });
 
   function toggle(id: number) {
     setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -43,13 +52,13 @@ export function AvancementTab({ ouvrageId, tasks, color, onUpdate, onUpdateTask,
   function hasChildren(id: number) { return ouvrTasks.some((t) => t.parentId === id); }
 
   function isExpanded(t: Task): boolean {
-    if (t.id === ouvrageId) return true;
+    if (rootIds.includes(t.id)) return true;
     const par = ouvrTasks.find((x) => x.id === t.parentId);
     if (!par) return true;
     return expanded.has(par.id) && isExpanded(par);
   }
   function isVisible(t: Task): boolean {
-    if (t.id === ouvrageId) return false;
+    if (rootIds.includes(t.id)) return !hideRoots;
     return isExpanded(t);
   }
 
@@ -66,18 +75,19 @@ export function AvancementTab({ ouvrageId, tasks, color, onUpdate, onUpdateTask,
 
   // Parent options for add form
   const parentOptions = ouvrTasks
-    .filter((t) => t.id === ouvrageId || t.level < 4)
+    .filter((t) => rootIds.includes(t.id) || t.level < 4)
     .map((t) => ({ value: String(t.id), label: `${'— '.repeat(Math.max(0, t.level - 1))}${t.nom}` }));
 
   function openAdd(parentId?: number) {
-    const parent = ouvrTasks.find((t) => t.id === (parentId ?? ouvrageId));
+    const defaultParentId = parentId ?? rootIds[0];
+    const parent = ouvrTasks.find((t) => t.id === defaultParentId);
     const today = new Date().toISOString().split('T')[0];
     setAddForm({
       nom: '',
       debut: parent?.debut ?? today,
       fin: parent?.fin ?? today,
       duree: 1,
-      parentId: parentId ?? ouvrageId,
+      parentId: defaultParentId,
       level: (parent?.level ?? 1) + 1,
     });
     setShowAdd(true);
@@ -164,8 +174,8 @@ export function AvancementTab({ ouvrageId, tasks, color, onUpdate, onUpdateTask,
       <Card padding={false}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <p className="text-sm font-bold text-gray-800">Tâches de l'ouvrage</p>
-            <p className="text-xs text-gray-400 mt-0.5">{ouvrTasks.length - 1} tâches · Cliquer sur le crayon pour modifier</p>
+            <p className="text-sm font-bold text-gray-800">{label ?? "Tâches de l'ouvrage"}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{ouvrTasks.length - (hideRoots ? rootIds.length : 0)} tâches · Cliquer sur le crayon pour modifier</p>
           </div>
           <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => openAdd()}>Ajouter</Button>
         </div>
@@ -184,9 +194,11 @@ export function AvancementTab({ ouvrageId, tasks, color, onUpdate, onUpdateTask,
             <tbody className="divide-y divide-gray-50">
               {ouvrTasks.filter(isVisible).map((t) => {
                 const isEdit = editing?.id === t.id;
-                const indent = Math.max(0, t.level - 2) * 14;
+                const baseLevel = hideRoots ? 2 : 1;
+                const indent = Math.max(0, t.level - baseLevel) * 14;
+                const isSection = rootIds.includes(t.id) || t.level === baseLevel + 1;
                 return (
-                  <tr key={t.id} className={`group hover:bg-slate-50/60 transition-colors ${t.level === 2 ? 'bg-slate-50/30' : ''}`}>
+                  <tr key={t.id} className={`group hover:bg-slate-50/60 transition-colors ${isSection ? 'bg-slate-50/30' : ''}`}>
                     {/* Nom */}
                     <td className="py-2 px-5">
                       <div className="flex items-center gap-1.5" style={{ paddingLeft: indent }}>
@@ -199,7 +211,7 @@ export function AvancementTab({ ouvrageId, tasks, color, onUpdate, onUpdateTask,
                           <input value={editing.nom} onChange={(e) => setEditing({ ...editing, nom: e.target.value })}
                             className="text-sm border border-gray-200 rounded-lg px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-400 font-medium" />
                         ) : (
-                          <span className={`truncate ${t.level === 2 ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>{t.nom}</span>
+                          <span className={`truncate ${isSection ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>{t.nom}</span>
                         )}
                       </div>
                     </td>

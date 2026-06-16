@@ -8,6 +8,7 @@ import { OuvragesListPage } from './pages/OuvragesListPage';
 import { OuvrageDetail } from './pages/OuvrageDetail';
 import { CetteSemainePage } from './pages/CetteSemainePage';
 import { CoordinationPage } from './pages/CoordinationPage';
+import { TravauxGenerauxPage } from './pages/TravauxGenerauxPage';
 import { RapportsPage } from './pages/RapportsPage';
 import { ParametresPage } from './pages/ParametresPage';
 import { Sidebar } from './components/layout/Sidebar';
@@ -17,6 +18,7 @@ import { hasSupabase } from './lib/supabase';
 const ROUTE_TITLES: Record<string, string> = {
   '/': 'Vue d\'ensemble',
   '/ouvrages': 'Ouvrages d\'art',
+  '/travaux-generaux': 'Travaux généraux',
   '/semaine': 'Cette semaine',
   '/coordination': 'Coordination',
   '/rapports': 'Rapports',
@@ -100,6 +102,11 @@ function AppShell() {
             </main>
           } />
           <Route path="/ouvrage/:id" element={<OuvrageDetail />} />
+          <Route path="/travaux-generaux" element={
+            <main className="flex-1 max-w-screen-xl w-full mx-auto px-6 py-6">
+              <TravauxGenerauxPage />
+            </main>
+          } />
           <Route path="/semaine" element={
             <main className="flex-1 max-w-screen-xl w-full mx-auto px-6 py-6">
               <CetteSemainePage tasks={tasks} />

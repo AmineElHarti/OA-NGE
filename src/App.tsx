@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { Menu, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { useStore } from './store/useStore';
+import { useOuvrageStore } from './store/useOuvrageStore';
 import { DashboardPage } from './pages/DashboardPage';
 import { OuvragesListPage } from './pages/OuvragesListPage';
 import { OuvrageDetail } from './pages/OuvrageDetail';
@@ -26,9 +27,14 @@ function AppShell() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { tasks, history, fetchFromSupabase, loading, synced } = useStore();
+  const fetchOuvrageData = useOuvrageStore((s) => s.fetchFromSupabase);
+  const ouvrageSynced = useOuvrageStore((s) => s.synced);
 
   useEffect(() => {
-    if (hasSupabase) fetchFromSupabase();
+    if (hasSupabase) {
+      fetchFromSupabase();
+      fetchOuvrageData();
+    }
   }, []);
 
   const isOuvragePage = location.pathname.startsWith('/ouvrage/');
@@ -54,9 +60,9 @@ function AppShell() {
                 </button>
                 <h1 className="font-bold text-gray-900 text-sm">{title}</h1>
               </div>
-              <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${hasSupabase ? synced ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
+              <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${hasSupabase ? (synced && ouvrageSynced) ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
                 {hasSupabase
-                  ? synced ? <><Wifi size={11} />Synchronisé</> : <><RefreshCw size={11} className="animate-spin" />Sync...</>
+                  ? (synced && ouvrageSynced) ? <><Wifi size={11} />Synchronisé</> : <><RefreshCw size={11} className="animate-spin" />Sync...</>
                   : <><WifiOff size={11} />Local</>}
               </div>
             </div>

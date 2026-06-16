@@ -51,7 +51,7 @@ export const useStore = create<Store>()(
           const { data: rows } = await supabase.from('tasks').select('*');
           if (rows && rows.length > 0) {
             const merged = get().tasks.map((t) => {
-              const remote = rows.find((r) => r.id === t.id);
+              const remote = rows.find((r: any) => r.id === t.id);
               return remote ? { ...t, progress: remote.progress, notes: remote.notes ?? t.notes, updatedAt: remote.updated_at } : t;
             });
             set({ tasks: merged, synced: true });
@@ -66,6 +66,8 @@ export const useStore = create<Store>()(
           }
           const { data: hist } = await supabase.from('progress_history').select('*').order('recorded_at', { ascending: true });
           if (hist) set({ history: hist as ProgressEntry[] });
+        } catch {
+          set({ synced: false });
         } finally {
           set({ loading: false });
         }
@@ -92,6 +94,16 @@ export const useStore = create<Store>()(
         set((state) => ({
           tasks: state.tasks.map((t) => t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t),
         }));
+        if (supabase) {
+          const dbUpdates: Record<string, any> = {};
+          if (updates.nom !== undefined) dbUpdates.nom = updates.nom;
+          if (updates.duree !== undefined) dbUpdates.duree = updates.duree;
+          if (updates.debut !== undefined) dbUpdates.debut = updates.debut;
+          if (updates.fin !== undefined) dbUpdates.fin = updates.fin;
+          if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+          dbUpdates.updated_at = new Date().toISOString();
+          supabase.from('tasks').update(dbUpdates).eq('id', id).then();
+        }
       },
 
       addTask: (task) => {
@@ -101,6 +113,13 @@ export const useStore = create<Store>()(
           tasks: [...state.tasks, newTask],
           nextId: state.nextId + 1,
         }));
+        if (supabase) {
+          supabase.from('tasks').insert({
+            id, nom: newTask.nom, duree: newTask.duree, debut: newTask.debut, fin: newTask.fin,
+            level: newTask.level, parent_id: newTask.parentId ?? null, is_milestone: newTask.isMilestone ?? false,
+            progress: 0, notes: newTask.notes ?? null,
+          }).then();
+        }
         return id;
       },
 
@@ -115,14 +134,17 @@ export const useStore = create<Store>()(
         set((state) => ({
           tasks: state.tasks.filter((t) => !toDelete.has(t.id)),
         }));
+        if (supabase) {
+          supabase.from('tasks').delete().in('id', [...toDelete]).then();
+        }
       },
 
       resetAll: async () => {
         const fresh = initTasks();
         set({ tasks: fresh, history: [], nextId: 10000 });
         if (supabase) {
-          await supabase.from('tasks').upsert(fresh.map((t) => ({ id: t.id, progress: 0, notes: null })));
           await supabase.from('progress_history').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('tasks').upsert(fresh.map((t) => ({ id: t.id, progress: 0, notes: null })));
         }
       },
     }),

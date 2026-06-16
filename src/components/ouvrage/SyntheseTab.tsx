@@ -1,11 +1,13 @@
+import { useRef } from 'react';
 import type { Task } from '../../data/tasks';
 import type { ProgressEntry } from '../../store/useStore';
+import type { PhotoCategorie } from '../../store/useOuvrageStore';
 import { getDescendants, computeProgress, computeTheoreticalProgress, isLeaf } from '../../hooks/useOuvrageProgress';
 import { computeAlerts } from '../../lib/scurve';
 import { useOuvrageStore } from '../../store/useOuvrageStore';
 import { SCurveChart } from '../charts/SCurveChart';
-import { Card, ProgressBar, Badge } from '../ui/index';
-import { TrendingUp, TrendingDown, AlertTriangle, PauseCircle, CheckCircle, Flag } from 'lucide-react';
+import { Card, ProgressBar, Badge, Button, showToast } from '../ui/index';
+import { TrendingUp, TrendingDown, AlertTriangle, PauseCircle, CheckCircle, Flag, ImagePlus, Trash2, Image } from 'lucide-react';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -24,7 +26,7 @@ export function SyntheseTab({ ouvrageId, tasks, history, color }: Props) {
   const gap = progress - theoretical;
   const ouvrHistory = history.filter((h) => ouvrTasks.some((t) => t.id === h.task_id));
   const ouvrAlerts = computeAlerts(ouvrTasks);
-  const { contraintes, etudes, todos } = useOuvrageStore();
+  const { contraintes, etudes, todos, photos, addPhoto, deletePhoto } = useOuvrageStore();
 
   const root = ouvrTasks.find((t) => t.id === ouvrageId);
   const today = new Date();
@@ -146,7 +148,110 @@ export function SyntheseTab({ ouvrageId, tasks, history, color }: Props) {
           </div>
         </Card>
       )}
+
+      {/* ── Photos / Plans ─────────────────────────────────────────────── */}
+      <PhotosSection ouvrageId={ouvrageId} photos={photos} addPhoto={addPhoto} deletePhoto={deletePhoto} />
     </div>
+  );
+}
+
+const PHOTO_CATEGORIES: { value: PhotoCategorie; label: string }[] = [
+  { value: 'conception', label: 'Conception de l\'ouvrage' },
+  { value: 'vue_en_plan', label: 'Vue en plan' },
+];
+
+function PhotosSection({ ouvrageId, photos, addPhoto, deletePhoto }: {
+  ouvrageId: number;
+  photos: ReturnType<typeof useOuvrageStore.getState>['photos'];
+  addPhoto: ReturnType<typeof useOuvrageStore.getState>['addPhoto'];
+  deletePhoto: ReturnType<typeof useOuvrageStore.getState>['deletePhoto'];
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const uploadCatRef = useRef<PhotoCategorie>('conception');
+  const ouvrPhotos = photos.filter((p) => p.ouvrageId === ouvrageId);
+  const conceptionPhotos = ouvrPhotos.filter((p) => p.categorie === 'conception');
+  const planPhotos = ouvrPhotos.filter((p) => p.categorie === 'vue_en_plan');
+
+  function handleUpload(cat: PhotoCategorie) {
+    uploadCatRef.current = cat;
+    fileRef.current?.click();
+  }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach((file) => {
+      if (!file.type.startsWith('image/')) return;
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('Image trop volumineuse (max 5 Mo)', 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX = 1200;
+          let w = img.width, h = img.height;
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          addPhoto({ ouvrageId, categorie: uploadCatRef.current, nom: file.name, dataUrl });
+          showToast('Photo ajoutée');
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  }
+
+  return (
+    <Card>
+      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={onFileChange} />
+      <p className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+        <Image size={14} className="text-blue-500" /> Plans et conception
+      </p>
+
+      {PHOTO_CATEGORIES.map((cat) => {
+        const items = cat.value === 'conception' ? conceptionPhotos : planPhotos;
+        return (
+          <div key={cat.value} className="mb-4 last:mb-0">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-600">{cat.label}</p>
+              <Button size="sm" variant="secondary" icon={<ImagePlus size={12} />} onClick={() => handleUpload(cat.value)}>
+                Ajouter
+              </Button>
+            </div>
+            {items.length === 0 ? (
+              <p className="text-xs text-gray-400 italic py-4 text-center">Aucune image</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {items.map((p) => (
+                  <div key={p.id} className="relative group rounded-lg overflow-hidden border border-gray-200">
+                    <img src={p.dataUrl} alt={p.nom} className="w-full h-40 object-cover" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                      <button
+                        onClick={() => { deletePhoto(p.id); showToast('Photo supprimée'); }}
+                        className="opacity-0 group-hover:opacity-100 bg-red-500 text-white p-2 rounded-full transition-opacity"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 truncate px-2 py-1 bg-gray-50">{p.nom}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </Card>
   );
 }
 

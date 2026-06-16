@@ -59,6 +59,17 @@ export interface ContrainteOption {
   label: string;
 }
 
+export type PhotoCategorie = 'conception' | 'vue_en_plan';
+
+export interface OuvragePhoto {
+  id: string;
+  ouvrageId: number;
+  categorie: PhotoCategorie;
+  nom: string;
+  dataUrl: string;
+  createdAt: string;
+}
+
 export type EtudeStatus = 'non_demarre' | 'en_cours' | 'soumis' | 'en_revision' | 'valide';
 
 export interface Etude {
@@ -113,6 +124,7 @@ interface OuvrageStore {
   notes: Note[];
   todos: Todo[];
   etudes: Etude[];
+  photos: OuvragePhoto[];
   concessionnaires: ContrainteOption[];
   naturesContrainte: ContrainteOption[];
   typesEtude: ContrainteOption[];
@@ -143,6 +155,10 @@ interface OuvrageStore {
   updateEtude: (id: string, updates: Partial<Etude>) => void;
   deleteEtude: (id: string) => void;
 
+  // Photos
+  addPhoto: (p: Omit<OuvragePhoto, 'id' | 'createdAt'>) => void;
+  deletePhoto: (id: string) => void;
+
   // Custom lists
   setConcessionnaires: (list: ContrainteOption[]) => void;
   setNaturesContrainte: (list: ContrainteOption[]) => void;
@@ -161,6 +177,7 @@ export const useOuvrageStore = create<OuvrageStore>()(
       notes: [],
       todos: [],
       etudes: [],
+      photos: [],
       concessionnaires: DEFAULT_CONCESSIONNAIRES,
       naturesContrainte: DEFAULT_NATURES,
       typesEtude: DEFAULT_TYPES_ETUDE,
@@ -236,6 +253,13 @@ export const useOuvrageStore = create<OuvrageStore>()(
       },
       deleteEtude: (id) => {
         set((s) => ({ etudes: s.etudes.filter((e) => e.id !== id) }));
+      },
+      addPhoto: (p) => {
+        const np: OuvragePhoto = { ...p, id: uid(), createdAt: new Date().toISOString() };
+        set((s) => ({ photos: [...s.photos, np] }));
+      },
+      deletePhoto: (id) => {
+        set((s) => ({ photos: s.photos.filter((p) => p.id !== id) }));
       },
       setConcessionnaires: (list) => set({ concessionnaires: list }),
       setNaturesContrainte: (list) => set({ naturesContrainte: list }),

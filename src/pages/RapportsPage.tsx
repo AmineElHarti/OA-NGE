@@ -8,7 +8,7 @@ import { FileDown, Calendar, Building2, Users, FileSpreadsheet } from 'lucide-re
 
 export function RapportsPage() {
   const { tasks, userName } = useStore();
-  const { contraintes, etudes, concessionnaires, typesEtude } = useOuvrageStore();
+  const { contraintes, etudes, concessionnaires, typesEtude, photos } = useOuvrageStore();
   const [showOuvragePicker, setShowOuvragePicker] = useState(false);
   const [pickedOuvrage, setPickedOuvrage] = useState<number>(OUVRAGES[0]?.id ?? 0);
 
@@ -68,7 +68,7 @@ export function RapportsPage() {
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" onClick={() => setShowOuvragePicker(false)}>Annuler</Button>
             <Button variant="primary" icon={<FileDown size={12} />} onClick={() => {
-              gen(() => generateOuvrageReport(tasks, pickedOuvrage, contraintes, etudes, userName), 'Fiche ouvrage générée');
+              gen(() => generateOuvrageReport(tasks, pickedOuvrage, contraintes, etudes, userName, photos), 'Fiche ouvrage générée');
               setShowOuvragePicker(false);
             }}>
               Générer PDF

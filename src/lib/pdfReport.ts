@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Task } from '../data/tasks';
 import { OUVRAGES } from '../data/tasks';
-import type { Contrainte, Etude, ContrainteOption } from '../store/useOuvrageStore';
+import type { Contrainte, Etude, ContrainteOption, OuvragePhoto } from '../store/useOuvrageStore';
 import { computeAlerts } from './scurve';
 import { computeProgress, computeTheoreticalProgress, getDescendants, isLeaf } from '../hooks/useOuvrageProgress';
 import { format, parseISO, differenceInDays } from 'date-fns';
@@ -314,6 +314,7 @@ export function generateOuvrageReport(
   contraintes: Contrainte[],
   etudes: Etude[],
   userName: string,
+  photos: OuvragePhoto[] = [],
 ) {
   const ouvrage = OUVRAGES.find((o) => o.id === ouvrageId);
   if (!ouvrage) return;
@@ -334,7 +335,9 @@ export function generateOuvrageReport(
 
   const ouvrContraintes = contraintes.filter((c) => c.ouvrageId === ouvrageId);
   const ouvrEtudes = etudes.filter((e) => e.ouvrageId === ouvrageId);
-  const totalPages = 2;
+  const ouvrPhotos = photos.filter((p) => p.ouvrageId === ouvrageId);
+  const hasPhotos = ouvrPhotos.length > 0;
+  const totalPages = hasPhotos ? 3 : 2;
 
   drawHeader(
     doc,
@@ -493,6 +496,59 @@ export function generateOuvrageReport(
   }
 
   drawFooter(doc, 2, totalPages, userName);
+
+  // ── PAGE 3 — Photos ───────────────────────────────────────────────
+  if (hasPhotos) {
+    doc.addPage();
+    drawHeader(doc, `Plans et conception — ${ouvrage.nom.split(' - ')[0]}`, ouvrage.nom.split(' - ').slice(1).join(' - '), dateStr);
+    y = 38;
+
+    const conceptionPhotos = ouvrPhotos.filter((p) => p.categorie === 'conception');
+    const planPhotos = ouvrPhotos.filter((p) => p.categorie === 'vue_en_plan');
+    const maxImgW = PAGE_W - 2 * MARGIN;
+
+    for (const { label, items } of [
+      { label: 'Conception de l\'ouvrage', items: conceptionPhotos },
+      { label: 'Vue en plan', items: planPhotos },
+    ]) {
+      if (items.length === 0) continue;
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...BRAND.dark);
+      doc.text(label, MARGIN, y);
+      y += 5;
+
+      for (const photo of items) {
+        try {
+          const imgProps = doc.getImageProperties(photo.dataUrl);
+          const ratio = imgProps.width / imgProps.height;
+          let imgW = Math.min(maxImgW, 120);
+          let imgH = imgW / ratio;
+          if (imgH > 100) { imgH = 100; imgW = imgH * ratio; }
+
+          if (y + imgH + 10 > PAGE_H - 20) {
+            drawFooter(doc, doc.getNumberOfPages(), totalPages, userName);
+            doc.addPage();
+            y = 20;
+          }
+
+          doc.addImage(photo.dataUrl, 'JPEG', MARGIN, y, imgW, imgH);
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(120);
+          doc.text(photo.nom, MARGIN, y + imgH + 4);
+          y += imgH + 10;
+        } catch {
+          // skip corrupt images
+        }
+      }
+      y += 4;
+    }
+
+    drawFooter(doc, 3, totalPages, userName);
+  }
+
   doc.save(`fiche-${ouvrage.nom.split(' - ')[0].toLowerCase().replace(/\s+/g, '-')}-${format(today, 'yyyy-MM-dd')}.pdf`);
 }
 

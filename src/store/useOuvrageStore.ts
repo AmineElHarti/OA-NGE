@@ -59,6 +59,35 @@ export interface ContrainteOption {
   label: string;
 }
 
+export type EtudeStatus = 'non_demarre' | 'en_cours' | 'soumis' | 'en_revision' | 'valide';
+
+export interface Etude {
+  id: string;
+  ouvrageId: number;
+  type: string;
+  nom: string;
+  status: EtudeStatus;
+  version: string;
+  dateSoumission?: string;
+  dateValidation?: string;
+  responsable?: string;
+  observations?: string;
+  createdAt: string;
+}
+
+const DEFAULT_TYPES_ETUDE: ContrainteOption[] = [
+  { value: 'APS', label: 'APS — Avant-Projet Sommaire' },
+  { value: 'APD', label: 'APD — Avant-Projet Détaillé' },
+  { value: 'EXE', label: 'EXE — Études d\'exécution' },
+  { value: 'PLANS', label: 'Plans d\'exécution' },
+  { value: 'NDC', label: 'Note de calcul' },
+  { value: 'METHODE', label: 'Méthode d\'exécution' },
+  { value: 'GEOTECHNIQUE', label: 'Étude géotechnique' },
+  { value: 'HYDRAULIQUE', label: 'Étude hydraulique' },
+  { value: 'PAQ', label: 'PAQ — Plan Assurance Qualité' },
+  { value: 'AUTRE', label: 'Autre' },
+];
+
 const DEFAULT_CONCESSIONNAIRES: ContrainteOption[] = [
   { value: 'OCP', label: 'OCP — Phosphate' },
   { value: 'ONEE_ELEC', label: 'ONEE — Électricité' },
@@ -83,8 +112,10 @@ interface OuvrageStore {
   contraintes: Contrainte[];
   notes: Note[];
   todos: Todo[];
+  etudes: Etude[];
   concessionnaires: ContrainteOption[];
   naturesContrainte: ContrainteOption[];
+  typesEtude: ContrainteOption[];
 
   // Kanban
   addCard: (card: Omit<KanbanCard, 'id' | 'createdAt'>) => void;
@@ -107,9 +138,15 @@ interface OuvrageStore {
   toggleTodo: (id: string) => void;
   deleteTodo: (id: string) => void;
 
+  // Études
+  addEtude: (e: Omit<Etude, 'id' | 'createdAt'>) => void;
+  updateEtude: (id: string, updates: Partial<Etude>) => void;
+  deleteEtude: (id: string) => void;
+
   // Custom lists
   setConcessionnaires: (list: ContrainteOption[]) => void;
   setNaturesContrainte: (list: ContrainteOption[]) => void;
+  setTypesEtude: (list: ContrainteOption[]) => void;
 }
 
 function uid() {
@@ -123,8 +160,10 @@ export const useOuvrageStore = create<OuvrageStore>()(
       contraintes: [],
       notes: [],
       todos: [],
+      etudes: [],
       concessionnaires: DEFAULT_CONCESSIONNAIRES,
       naturesContrainte: DEFAULT_NATURES,
+      typesEtude: DEFAULT_TYPES_ETUDE,
 
       addCard: (card) => {
         const newCard: KanbanCard = { ...card, id: uid(), createdAt: new Date().toISOString() };
@@ -188,8 +227,19 @@ export const useOuvrageStore = create<OuvrageStore>()(
         set((s) => ({ todos: s.todos.filter((t) => t.id !== id) }));
         if (supabase) supabase.from('todos').delete().eq('id', id);
       },
+      addEtude: (e) => {
+        const ne: Etude = { ...e, id: uid(), createdAt: new Date().toISOString() };
+        set((s) => ({ etudes: [...s.etudes, ne] }));
+      },
+      updateEtude: (id, updates) => {
+        set((s) => ({ etudes: s.etudes.map((e) => e.id === id ? { ...e, ...updates } : e) }));
+      },
+      deleteEtude: (id) => {
+        set((s) => ({ etudes: s.etudes.filter((e) => e.id !== id) }));
+      },
       setConcessionnaires: (list) => set({ concessionnaires: list }),
       setNaturesContrainte: (list) => set({ naturesContrainte: list }),
+      setTypesEtude: (list) => set({ typesEtude: list }),
     }),
     { name: 'oa-nge-ouvrage-store' }
   )

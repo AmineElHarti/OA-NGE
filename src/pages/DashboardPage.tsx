@@ -18,7 +18,7 @@ export function DashboardPage({ tasks, history }: Props) {
   const ouvrages = useOuvrageProgress(tasks);
   const { progress, theoretical, gap } = useGlobalProgress(tasks);
   const alerts = computeAlerts(tasks);
-  const { contraintes, todos } = useOuvrageStore();
+  const { contraintes, todos, etudes } = useOuvrageStore();
 
   const allLeaves = tasks.filter((t) => isLeaf(t.id, tasks));
   const done = allLeaves.filter((t) => t.progress === 100).length;
@@ -45,8 +45,12 @@ export function DashboardPage({ tasks, history }: Props) {
       alertCount: oAlerts.length,
       contrainteCount: contraintes.filter((c) => c.ouvrageId === o.id && c.status !== 'levee').length,
       todoCount: todos.filter((t) => t.ouvrageId === o.id && !t.done).length,
+      etudeTotal: etudes.filter((e) => e.ouvrageId === o.id).length,
+      etudeValide: etudes.filter((e) => e.ouvrageId === o.id && e.status === 'valide').length,
     };
   });
+
+  const openEtudes = etudes.filter((e) => e.status !== 'valide').length;
 
   return (
     <div className="space-y-6">
@@ -78,11 +82,12 @@ export function DashboardPage({ tasks, history }: Props) {
         </div>
 
         {/* KPI grid */}
-        <div className="col-span-7 grid grid-cols-4 gap-3">
+        <div className="col-span-7 grid grid-cols-5 gap-3">
           <KpiCard label="Tâches" value={`${done}/${allLeaves.length}`} sub="terminées" color="#3b82f6" />
           <KpiCard label="Retards" value={criticalAlerts.length} sub={`${alerts.length} au total`} color={alerts.length > 0 ? '#ef4444' : '#10b981'} />
           <KpiCard label="Bloquées" value={blocked} sub="en attente" color={blocked > 0 ? '#f59e0b' : '#10b981'} />
           <KpiCard label="Contraintes" value={openContraintes} sub={`${pendingTodos} todos`} color={openContraintes > 0 ? '#f59e0b' : '#10b981'} />
+          <KpiCard label="Études" value={openEtudes} sub="non validées" color={openEtudes > 0 ? '#f59e0b' : '#10b981'} />
         </div>
       </div>
 
@@ -150,6 +155,7 @@ export function DashboardPage({ tasks, history }: Props) {
                 <th className="text-center py-2.5 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wide w-20">Prévu</th>
                 <th className="text-center py-2.5 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wide w-20">Écart</th>
                 <th className="text-center py-2.5 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wide w-24">Tâches</th>
+                <th className="text-center py-2.5 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wide w-20">Études</th>
                 <th className="text-center py-2.5 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wide w-16">Alertes</th>
                 <th className="py-2.5 px-3 w-8"></th>
               </tr>
@@ -184,6 +190,13 @@ export function DashboardPage({ tasks, history }: Props) {
                     <td className="py-3 px-3 text-center">
                       <span className="text-xs text-gray-500 tabular-nums">{o.doneCount}/{o.leafCount}</span>
                       {o.blockedCount > 0 && <span className="text-xs text-amber-500 ml-1">({o.blockedCount} bloq.)</span>}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {o.etudeTotal > 0 ? (
+                        <span className="text-xs text-gray-500 tabular-nums">{o.etudeValide}/{o.etudeTotal}</span>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="py-3 px-3 text-center">
                       <div className="flex items-center justify-center gap-1">

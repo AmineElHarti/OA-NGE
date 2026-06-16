@@ -7,16 +7,18 @@ import { useOuvrageStore } from '../store/useOuvrageStore';
 import { AvancementTab } from '../components/ouvrage/AvancementTab';
 import { KanbanBoard } from '../components/ouvrage/KanbanBoard';
 import { ContraintesTab } from '../components/ouvrage/ContraintesTab';
+import { EtudesTab } from '../components/ouvrage/EtudesTab';
 import { NotesTab } from '../components/ouvrage/NotesTab';
 import { TodoTab } from '../components/ouvrage/TodoTab';
 import { ProgressBar } from '../components/ui/index';
-import { ArrowLeft, TrendingUp, Kanban, AlertTriangle, MessageSquare, ClipboardList } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Kanban, AlertTriangle, MessageSquare, ClipboardList, FileText } from 'lucide-react';
 import { getDescendants, computeProgress } from '../hooks/useOuvrageProgress';
 
-type Tab = 'avancement' | 'kanban' | 'contraintes' | 'notes' | 'todos';
+type Tab = 'avancement' | 'etudes' | 'kanban' | 'contraintes' | 'notes' | 'todos';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'avancement', label: 'Avancement', icon: <TrendingUp size={14} /> },
+  { id: 'etudes', label: 'Études', icon: <FileText size={14} /> },
   { id: 'kanban', label: 'Kanban', icon: <Kanban size={14} /> },
   { id: 'contraintes', label: 'Contraintes', icon: <AlertTriangle size={14} /> },
   { id: 'notes', label: 'Notes', icon: <MessageSquare size={14} /> },
@@ -32,7 +34,7 @@ export function OuvrageDetail() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('avancement');
   const { tasks, history, updateProgress, updateTask, addTask, deleteTask, userName } = useStore();
-  const { contraintes, todos } = useOuvrageStore();
+  const { contraintes, todos, etudes } = useOuvrageStore();
 
   const ouvrageId = Number(id);
   const ouvrage = OUVRAGES.find((o) => o.id === ouvrageId);
@@ -47,6 +49,7 @@ export function OuvrageDetail() {
   const progress = getOuvrageProgress(tasks, ouvrageId);
   const pendingContraintes = contraintes.filter((c) => c.ouvrageId === ouvrageId && c.status !== 'levee').length;
   const pendingTodos = todos.filter((t) => t.ouvrageId === ouvrageId && !t.done).length;
+  const pendingEtudes = etudes.filter((e) => e.ouvrageId === ouvrageId && e.status !== 'valide').length;
   const [pk, ...nameParts] = ouvrage.nom.split(' - ');
   const name = nameParts.join(' - ');
 
@@ -80,7 +83,7 @@ export function OuvrageDetail() {
           {/* Tabs */}
           <div className="flex gap-0 mt-3 -mb-px overflow-x-auto">
             {TABS.map((t) => {
-              const badge = t.id === 'contraintes' ? pendingContraintes : t.id === 'todos' ? pendingTodos : 0;
+              const badge = t.id === 'contraintes' ? pendingContraintes : t.id === 'todos' ? pendingTodos : t.id === 'etudes' ? pendingEtudes : 0;
               return (
                 <button
                   key={t.id}
@@ -106,6 +109,7 @@ export function OuvrageDetail() {
       {/* Tab content */}
       <main className="max-w-screen-xl mx-auto px-6 py-6">
         {tab === 'avancement' && <AvancementTab ouvrageId={ouvrageId} tasks={tasks} history={history} color={ouvrage.color} onUpdate={updateProgress} onUpdateTask={updateTask} onAddTask={addTask} onDeleteTask={deleteTask} />}
+        {tab === 'etudes' && <EtudesTab ouvrageId={ouvrageId} />}
         {tab === 'kanban' && <KanbanBoard ouvrageId={ouvrageId} tasks={tasks} color={ouvrage.color} onUpdateTask={updateTask} onUpdateProgress={updateProgress} onAddTask={addTask} onDeleteTask={deleteTask} />}
         {tab === 'contraintes' && <ContraintesTab ouvrageId={ouvrageId} />}
         {tab === 'notes' && <NotesTab ouvrageId={ouvrageId} userName={userName} />}

@@ -3,15 +3,12 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Edit2, Check, X, ChevronRight, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import type { Task } from '../../data/tasks';
-import type { ProgressEntry } from '../../store/useStore';
-import { getDescendants, computeProgress, computeTheoreticalProgress } from '../../hooks/useOuvrageProgress';
-import { SCurveChart } from '../charts/SCurveChart';
+import { getDescendants } from '../../hooks/useOuvrageProgress';
 import { Card, ProgressBar, Button, Modal, Input, Select, showToast } from '../ui/index';
 
 interface Props {
   ouvrageId: number;
   tasks: Task[];
-  history: ProgressEntry[];
   color: string;
   onUpdate: (id: number, progress: number, notes?: string) => void;
   onUpdateTask: (id: number, updates: Partial<Omit<Task, 'id'>>) => void;
@@ -31,7 +28,7 @@ interface EditState {
 
 const EMPTY_ADD = { nom: '', debut: '', fin: '', duree: 1, parentId: 0, level: 3 };
 
-export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate, onUpdateTask, onAddTask, onDeleteTask }: Props) {
+export function AvancementTab({ ouvrageId, tasks, color, onUpdate, onUpdateTask, onAddTask, onDeleteTask }: Props) {
   const [editing, setEditing] = useState<EditState | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set([ouvrageId]));
   const [showAdd, setShowAdd] = useState(false);
@@ -39,10 +36,6 @@ export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate, onUp
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   const ouvrTasks = getDescendants(tasks, ouvrageId);
-  const progress = computeProgress(ouvrTasks);
-  const theoretical = computeTheoreticalProgress(ouvrTasks);
-  const gap = progress - theoretical;
-  const ouvrHistory = history.filter((h) => ouvrTasks.some((t) => t.id === h.task_id));
 
   function toggle(id: number) {
     setExpanded((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -166,48 +159,6 @@ export function AvancementTab({ ouvrageId, tasks, history, color, onUpdate, onUp
           );
         })()}
       </Modal>
-
-      {/* KPI row */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card className="text-center">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Réalisé</p>
-          <p className="text-4xl font-black" style={{ color }}>{progress}%</p>
-        </Card>
-        <Card className="text-center">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Prévu à ce jour</p>
-          <p className="text-4xl font-black text-gray-300">{theoretical}%</p>
-        </Card>
-        <Card className={`text-center ${gap >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'} border`}>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Écart</p>
-          <p className={`text-4xl font-black ${gap >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{gap >= 0 ? '+' : ''}{gap}%</p>
-        </Card>
-      </div>
-
-      {/* Progress bars */}
-      <Card>
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between text-sm font-semibold mb-2">
-              <span className="text-gray-700">Avancement réalisé</span>
-              <span style={{ color }}>{progress}%</span>
-            </div>
-            <ProgressBar value={progress} color={color} height="h-3" />
-          </div>
-          <div>
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-400">Prévu théorique</span>
-              <span className="text-gray-400">{theoretical}%</span>
-            </div>
-            <ProgressBar value={theoretical} color="#e2e8f0" height="h-1.5" />
-          </div>
-        </div>
-      </Card>
-
-      {/* S-curve */}
-      <Card>
-        <p className="text-sm font-bold text-gray-800 mb-4">Courbe S — Prévu vs Réalisé</p>
-        <SCurveChart tasks={ouvrTasks} history={ouvrHistory} height={220} />
-      </Card>
 
       {/* Task list with CRUD */}
       <Card padding={false}>

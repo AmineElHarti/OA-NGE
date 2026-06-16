@@ -4,25 +4,21 @@ import type { Task } from '../data/tasks';
 import { OUVRAGES } from '../data/tasks';
 import { useStore } from '../store/useStore';
 import { useOuvrageStore } from '../store/useOuvrageStore';
-import { AvancementTab } from '../components/ouvrage/AvancementTab';
-import { KanbanBoard } from '../components/ouvrage/KanbanBoard';
-import { ContraintesTab } from '../components/ouvrage/ContraintesTab';
+import { SyntheseTab } from '../components/ouvrage/SyntheseTab';
+import { TachesTab } from '../components/ouvrage/TachesTab';
 import { EtudesTab } from '../components/ouvrage/EtudesTab';
-import { NotesTab } from '../components/ouvrage/NotesTab';
-import { TodoTab } from '../components/ouvrage/TodoTab';
+import { CoordinationTab } from '../components/ouvrage/CoordinationTab';
 import { ProgressBar } from '../components/ui/index';
-import { ArrowLeft, TrendingUp, Kanban, AlertTriangle, MessageSquare, ClipboardList, FileText } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, ListChecks, FileText, Users } from 'lucide-react';
 import { getDescendants, computeProgress } from '../hooks/useOuvrageProgress';
 
-type Tab = 'avancement' | 'etudes' | 'kanban' | 'contraintes' | 'notes' | 'todos';
+type Tab = 'synthese' | 'taches' | 'etudes' | 'coordination';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: 'avancement', label: 'Avancement', icon: <TrendingUp size={14} /> },
+  { id: 'synthese', label: 'Synthèse', icon: <LayoutDashboard size={14} /> },
+  { id: 'taches', label: 'Tâches', icon: <ListChecks size={14} /> },
   { id: 'etudes', label: 'Études', icon: <FileText size={14} /> },
-  { id: 'kanban', label: 'Kanban', icon: <Kanban size={14} /> },
-  { id: 'contraintes', label: 'Contraintes', icon: <AlertTriangle size={14} /> },
-  { id: 'notes', label: 'Notes', icon: <MessageSquare size={14} /> },
-  { id: 'todos', label: 'À faire', icon: <ClipboardList size={14} /> },
+  { id: 'coordination', label: 'Coordination', icon: <Users size={14} /> },
 ];
 
 function getOuvrageProgress(tasks: Task[], ouvrageId: number): number {
@@ -32,7 +28,7 @@ function getOuvrageProgress(tasks: Task[], ouvrageId: number): number {
 export function OuvrageDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>('avancement');
+  const [tab, setTab] = useState<Tab>('synthese');
   const { tasks, history, updateProgress, updateTask, addTask, deleteTask, userName } = useStore();
   const { contraintes, todos, etudes } = useOuvrageStore();
 
@@ -42,7 +38,7 @@ export function OuvrageDetail() {
   if (!ouvrage) return (
     <div className="p-8 text-center">
       <p className="text-gray-500">Ouvrage non trouvé.</p>
-      <button onClick={() => navigate('/')} className="mt-4 text-blue-600 hover:underline text-sm">← Retour au tableau de bord</button>
+      <button onClick={() => navigate('/ouvrages')} className="mt-4 text-blue-600 hover:underline text-sm">← Retour aux ouvrages</button>
     </div>
   );
 
@@ -59,8 +55,8 @@ export function OuvrageDetail() {
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-screen-xl mx-auto px-6">
           <div className="pt-4 pb-0">
-            <button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 mb-3 transition-colors">
-              <ArrowLeft size={13} /> Tableau de bord
+            <button onClick={() => navigate('/ouvrages')} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 mb-3 transition-colors">
+              <ArrowLeft size={13} /> Ouvrages
             </button>
             <div className="flex items-center justify-between gap-4 mb-4">
               <div className="flex items-center gap-3 min-w-0">
@@ -74,7 +70,7 @@ export function OuvrageDetail() {
               </div>
               <div className="text-right flex-shrink-0">
                 <p className="text-3xl font-black tabular-nums" style={{ color: ouvrage.color }}>{progress}%</p>
-                <p className="text-xs text-gray-400">avancement physique</p>
+                <p className="text-xs text-gray-400">avancement</p>
               </div>
             </div>
             <ProgressBar value={progress} color={ouvrage.color} height="h-1.5" />
@@ -83,7 +79,10 @@ export function OuvrageDetail() {
           {/* Tabs */}
           <div className="flex gap-0 mt-3 -mb-px overflow-x-auto">
             {TABS.map((t) => {
-              const badge = t.id === 'contraintes' ? pendingContraintes : t.id === 'todos' ? pendingTodos : t.id === 'etudes' ? pendingEtudes : 0;
+              const badge =
+                t.id === 'etudes' ? pendingEtudes :
+                t.id === 'coordination' ? pendingContraintes + pendingTodos :
+                0;
               return (
                 <button
                   key={t.id}
@@ -108,12 +107,10 @@ export function OuvrageDetail() {
 
       {/* Tab content */}
       <main className="max-w-screen-xl mx-auto px-6 py-6">
-        {tab === 'avancement' && <AvancementTab ouvrageId={ouvrageId} tasks={tasks} history={history} color={ouvrage.color} onUpdate={updateProgress} onUpdateTask={updateTask} onAddTask={addTask} onDeleteTask={deleteTask} />}
+        {tab === 'synthese' && <SyntheseTab ouvrageId={ouvrageId} tasks={tasks} history={history} color={ouvrage.color} />}
+        {tab === 'taches' && <TachesTab ouvrageId={ouvrageId} tasks={tasks} color={ouvrage.color} onUpdate={updateProgress} onUpdateTask={updateTask} onAddTask={addTask} onDeleteTask={deleteTask} />}
         {tab === 'etudes' && <EtudesTab ouvrageId={ouvrageId} />}
-        {tab === 'kanban' && <KanbanBoard ouvrageId={ouvrageId} tasks={tasks} color={ouvrage.color} onUpdateTask={updateTask} onUpdateProgress={updateProgress} onAddTask={addTask} onDeleteTask={deleteTask} />}
-        {tab === 'contraintes' && <ContraintesTab ouvrageId={ouvrageId} />}
-        {tab === 'notes' && <NotesTab ouvrageId={ouvrageId} userName={userName} />}
-        {tab === 'todos' && <TodoTab ouvrageId={ouvrageId} />}
+        {tab === 'coordination' && <CoordinationTab ouvrageId={ouvrageId} userName={userName} />}
       </main>
     </div>
   );
